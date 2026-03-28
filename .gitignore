@@ -1,0 +1,332 @@
+# -----------------------------
+# OS / Editor / Misc
+# -----------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+.vscode/
+.idea/
+*.iml
+*.suo
+*.user
+*.userossc
+*.sln.docstates
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Env / local config
+.env
+.env.*
+*.local
+
+# Archives / temp
+*.7z
+*.gz
+*.zip
+*.tar
+*.tgz
+*.bz2
+*.rar
+tmp/
+temp/
+.cache/
+.tmp/
+
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pyo
+
+# Packaging / build
+.Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+share/python-wheels/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Test / coverage / type check / lint
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+.hypothesis/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Python dependency locks
+poetry.lock
+Pipfile.lock
+
+# -----------------------------
+# JavaScript / TypeScript / Node
+# -----------------------------
+node_modules/
+jspm_packages/
+web_modules/
+
+# Package manager caches
+.npm/
+.pnpm-store/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Build / framework outputs
+dist/
+build/
+coverage/
+.next/
+out/
+.nuxt/
+.svelte-kit/
+.parcel-cache/
+.turbo/
+.vercel/
+.netlify/
+
+# Vite
+vite.svg
+
+# TypeScript
+*.tsbuildinfo
+
+# -----------------------------
+# React / Next / Expo
+# -----------------------------
+.expo/
+.expo-shared/
+
+# -----------------------------
+# Vue / Nuxt
+# -----------------------------
+.nuxt/
+.output/
+
+# -----------------------------
+# Angular
+# -----------------------------
+.angular/
+.angular/cache/
+
+# -----------------------------
+# Java / JVM / Gradle / Kotlin
+# -----------------------------
+.gradle/
+build/
+out/
+*.class
+
+# -----------------------------
+# Go
+# -----------------------------
+bin/
+.coverprofile
+
+# -----------------------------
+# Rust
+# -----------------------------
+target/
+Cargo.lock
+# Keep Cargo.lock for applications; ignore for libraries if preferred.
+
+# -----------------------------
+# Ruby / Rails
+# -----------------------------
+.bundle/
+vendor/bundle/
+.yardoc/
+.yardoc/
+coverage/
+tmp/
+log/
+.byebug_history
+.rspec_status
+
+# Rails
+storage/
+public/assets
+public/packs
+node_modules/
+
+# -----------------------------
+# PHP / Composer / Laravel
+# -----------------------------
+vendor/
+composer.lock
+bootstrap/cache/
+storage/*.key
+storage/logs/
+storage/framework/cache/
+storage/framework/sessions/
+storage/framework/views/
+
+# -----------------------------
+# .NET / C#
+# -----------------------------
+bin/
+obj/
+*.rsuser
+
+# -----------------------------
+# C / C++ / CMake
+# -----------------------------
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+Makefile
+makedep*
+libtool
+aclocal.m4
+m4/
+autom4te.cache/
+
+# -----------------------------
+# Swift / Xcode
+# -----------------------------
+.build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
+
+# -----------------------------
+# Dart / Flutter
+# -----------------------------
+.dart_tool/
+.packages
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-versions
+ios/Flutter/.last_build_id
+
+# -----------------------------
+# Elixir / Phoenix
+# -----------------------------
+/_build/
+/deps/
+/cover/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+
+# -----------------------------
+# Haskell / Stack / Cabal
+# -----------------------------
+.stack-work/
+dist-newstyle/
+cabal-dev/
+*.hi
+*.o
+
+# -----------------------------
+# Terraform / IaC
+# -----------------------------
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# -----------------------------
+# Serverless / Cloud tooling
+# -----------------------------
+.serverless/
+.aws-sam/
+
+# -----------------------------
+# Databases / local data
+# -----------------------------
+*.sqlite
+*.sqlite3
+*.db
+
+# -----------------------------
+# Containers
+# -----------------------------
+docker-compose.override.yml
+
+# -----------------------------
+# Secrets / certs
+# -----------------------------
+*.pem
+*.key
+*.crt
+*.p12
+
+# -----------------------------
+# Optional: generated media/data
+# Uncomment if wanted
+# -----------------------------
+# data/
+# artifacts/
+# screenshots/
+# exports/
