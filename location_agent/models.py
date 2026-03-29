@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import math
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
+from typing import List
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 NORMALIZATION_DECIMALS = 6
 DEFAULT_TOLERANCE = 0.05
 DEFAULT_GUESS_THRESHOLD = 0.6
 REINFORCEMENT_BOOST_PER_CONFIRM = 0.05
 REINFORCEMENT_BOOST_CAP = 0.4
+DEFAULT_OUTLIER_FACTOR = 3.0
 
 
 class ObservationError(ValueError):
@@ -53,6 +56,18 @@ def reinforced_confidence(
     return min(base_confidence + boost, 1.0)
 
 
+def compute_spread(values: list[float]) -> float:
+    """Population standard deviation of *values*.
+
+    Returns 0.0 for empty or single-element lists.
+    """
+    n = len(values)
+    if n <= 1:
+        return 0.0
+    mean = sum(values) / n
+    return math.sqrt(sum((v - mean) ** 2 for v in values) / n)
+
+
 @dataclass(frozen=True)
 class NormalizedObservation:
     raw_input: str
@@ -72,6 +87,8 @@ class NormalizedObservation:
             raise ObservationError("invalid observation: enter a number between 0.0 and 1.0")
         return cls(raw_input=raw_input, value=value, key=f"{value:.{NORMALIZATION_DECIMALS}f}")
 
+
+# -- Phase 2 legacy (used only for v2→v3 migration) ---------------------
 
 @dataclass(frozen=True)
 class LocationRecord:
@@ -103,3 +120,73 @@ class LocationRecord:
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+# -- Phase 3 location model ---------------------------------------------
+
+@dataclass(frozen=True)
+class LocationModel:
+    location_id: str
+    label: str
+    prototype: float
+    observation_values: tuple[float, ...]
+    observation_count: int
+    spread: float
+    guess_count: int
+    correct_count: int
+    incorrect_count: int
+    first_seen_at: str
+    last_seen_at: str
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "LocationModel":
+        raw_values = payload.get("observation_values", [])
+        values = tuple(float(v) for v in raw_values)  # type: ignore[union-attr]
+        return cls(
+            location_id=str(payload["location_id"]),
+            label=str(payload["label"]),
+            prototype=float(payload["prototype"]),
+            observation_values=values,
+            observation_count=int(payload["observation_count"]),
+            spread=float(payload["spread"]),
+            guess_count=int(payload["guess_count"]),
+            correct_count=int(payload["correct_count"]),
+            incorrect_count=int(payload["incorrect_count"]),
+            first_seen_at=str(payload["first_seen_at"]),
+            last_seen_at=str(payload["last_seen_at"]),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        d = asdict(self)
+        d["observation_values"] = list(d["observation_values"])
+        return d
+
+    def with_merged_observation(self, value: float) -> "LocationModel":
+        new_values = self.observation_values + (value,)
+        new_count = self.observation_count + 1
+        new_prototype = sum(new_values) / len(new_values)
+        new_spread = compute_spread(list(new_values))
+        return replace(
+            self,
+            prototype=new_prototype,
+            observation_values=new_values,
+            observation_count=new_count,
+            spread=new_spread,
+            last_seen_at=utc_now_iso(),
+        )
+
+    @classmethod
+    def from_record(cls, record: LocationRecord) -> "LocationModel":
+        return cls(
+            location_id=record.location_id,
+            label=record.label,
+            prototype=record.observation_value,
+            observation_values=(record.observation_value,),
+            observation_count=record.observation_count,
+            spread=0.0,
+            guess_count=record.guess_count,
+            correct_count=record.correct_count,
+            incorrect_count=record.incorrect_count,
+            first_seen_at=record.first_seen_at,
+            last_seen_at=record.last_seen_at,
+        )

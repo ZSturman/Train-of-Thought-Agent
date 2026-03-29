@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 3 — Multi-Observation Location Models
+
+- Replaced one-record-per-observation storage with `LocationModel` dataclass: each
+  model holds a running-mean prototype, all raw observation values, and population
+  standard deviation (spread).
+- Storage key changed from observation key string to UUID `location_id`.
+- Confirming a noisy guess now merges the observation value into the matched model,
+  shifting the prototype and updating spread.
+- Added outlier detection: observations farther than 3× max(spread, tolerance) from
+  the model prototype trigger a warning before merging.
+- Added `inspect` CLI command to display all stored models with prototype, observation
+  count, and spread.
+- Implemented transparent schema v2 → v3 migration on load, converting each
+  `LocationRecord` in `locations_by_observation` to a `LocationModel` in
+  `location_models`. Chained with existing v1 → v2 migration.
+- Added `compute_spread()`, `LocationModel.with_merged_observation()`,
+  `LocationModel.from_record()`, `MemoryStore.merge_observation()`,
+  `MemoryStore.is_outlier()`, `MemoryStore.lookup_by_id()`,
+  `MemoryStore.inspect_models()`.
+- Created `tests/test_models_phase3.py` with 14 tests for spread, model creation,
+  merge, immutability, and record-to-model conversion.
+- Updated all existing tests for Phase 3 API: 64 tests passing (up from 30 in Phase 2).
+- Added merge-on-confirm session tests, inspect command test, merge event logging test,
+  repeated-confirmation prototype-shift test.
+- Added merge stress test: 100 models × 10 noisy observations each.
+
 ## 2026-03-28
 
 - Implemented Phase 2: Noisy Scalar Matching and Confidence Calibration.

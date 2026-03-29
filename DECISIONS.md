@@ -75,3 +75,41 @@
 - Rationale: The only structural difference between v1 and v2 is the confidence_policy (added `tolerance`, changed `kind` to `distance`, lowered `guess_threshold`). No data migration is needed.
 - Alternatives considered: Requiring manual migration, refusing to load v1 files
 - Consequences: Existing v1 runtime files are upgraded automatically on first load. Old installations continue working without manual intervention.
+
+## Phase 3
+
+### Decision: Use running arithmetic mean as the prototype update rule
+
+- Rationale: Simple, deterministic, and easy to verify. Each model stores all raw observation values and recomputes the mean on merge. No tuning parameters needed.
+- Alternatives considered: Exponential moving average (recency bias not needed yet), weighted mean by confidence, median
+- Consequences: Prototype converges to the true center of observations. All raw values are stored to support future alternative aggregation rules.
+
+### Decision: Use population standard deviation for spread
+
+- Rationale: Provides a natural measure of observation consistency that is directly comparable to tolerance. Computed from stored observation values via `compute_spread()`.
+- Alternatives considered: Sample standard deviation (N-1), interquartile range, max-min range
+- Consequences: Single-observation models have spread=0, which is correctly handled by using tolerance as a floor in outlier detection.
+
+### Decision: Set outlier factor to 3× max(spread, tolerance)
+
+- Rationale: Flags observations that are implausibly far from the current prototype. Using `max(spread, tolerance)` ensures outlier detection works for both single-observation models (where spread=0) and multi-observation models. Factor of 3 matches common 3-sigma practice.
+- Alternatives considered: Fixed absolute threshold, user-configurable per-model, 2× factor
+- Consequences: Outlier warnings are conservatively tuned to avoid false alarms. Users can still confirm outlier observations.
+
+### Decision: Key storage by location_id (UUID) instead of observation key
+
+- Rationale: With merged models, a single model may cover many different observation values. The observation key is no longer unique per model. A UUID provides a stable, unique identifier.
+- Alternatives considered: Keeping observation key as primary key with aliasing, using label as key
+- Consequences: Lookup by observation value requires scanning all model prototypes (linear search, acceptable at current scale). `lookup_by_id()` provides O(1) access when the ID is known.
+
+### Decision: Chain schema migrations (v1→v2→v3) on load
+
+- Rationale: Each migration step is small and testable. Chaining avoids duplicating v1→v2 logic inside a monolithic v1→v3 migration.
+- Alternatives considered: Direct v1→v3 jump, requiring manual migration between major versions
+- Consequences: Any version of the runtime file is automatically brought to v3. Future phases add one migration step each.
+
+### Decision: Store all raw observation values in the model
+
+- Rationale: Enables recomputing prototype and spread with different algorithms in the future. Small memory cost at current scale.
+- Alternatives considered: Storing only running statistics (mean, count, sum-of-squares), discarding raw values after N observations
+- Consequences: Memory grows linearly with observation count per model. Acceptable for foreseeable scale; can be compacted later if needed.

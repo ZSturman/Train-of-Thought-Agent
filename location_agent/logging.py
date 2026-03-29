@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from location_agent.models import LocationRecord, NormalizedObservation, SCHEMA_VERSION, utc_now_iso
+from location_agent.models import LocationModel, LocationRecord, NormalizedObservation, SCHEMA_VERSION, utc_now_iso
 
 
 class EventLogger:
-    """Append-only JSONL logger for Phase 1 runtime events."""
+    """Append-only JSONL logger for runtime events."""
 
     def __init__(self, path: Path | str):
         self.path = Path(path)
@@ -24,10 +24,15 @@ class EventLogger:
         confidence: float | None = None,
         feedback: int | None = None,
         mutation_kind: str | None = None,
-        old_record: LocationRecord | None = None,
-        new_record: LocationRecord | None = None,
+        old_record: LocationRecord | LocationModel | None = None,
+        new_record: LocationRecord | LocationModel | None = None,
         notes: str | None = None,
     ) -> None:
+        def _serialize(rec: LocationRecord | LocationModel | None) -> dict[str, Any] | None:
+            if rec is None:
+                return None
+            return rec.to_dict()
+
         payload: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "timestamp": utc_now_iso(),
@@ -39,8 +44,8 @@ class EventLogger:
             "confidence": confidence,
             "feedback": feedback,
             "mutation_kind": mutation_kind,
-            "old_record": old_record.to_dict() if old_record else None,
-            "new_record": new_record.to_dict() if new_record else None,
+            "old_record": _serialize(old_record),
+            "new_record": _serialize(new_record),
             "notes": notes,
         }
         with self.path.open("a", encoding="utf-8") as handle:

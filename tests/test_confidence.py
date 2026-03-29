@@ -53,24 +53,24 @@ class FindNearestTests(unittest.TestCase):
         self.addCleanup(self.temporary_directory.cleanup)
         self.memory_path = Path(self.temporary_directory.name) / "location_memory.json"
 
-    def test_exact_match_returns_confidence_1(self) -> None:
+    def test_exact_match_returns_high_confidence(self) -> None:
         store = MemoryStore(self.memory_path)
         store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
 
-        record, confidence = store.find_nearest(NormalizedObservation.parse("0.250000"))
+        model, confidence = store.find_nearest(NormalizedObservation.parse("0.250000"))
 
-        self.assertIsNotNone(record)
-        self.assertEqual("kitchen", record.label)
+        self.assertIsNotNone(model)
+        self.assertEqual("kitchen", model.label)
         self.assertAlmostEqual(confidence, 1.0)
 
     def test_within_tolerance_returns_graded_confidence(self) -> None:
         store = MemoryStore(self.memory_path)
         store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
 
-        record, confidence = store.find_nearest(NormalizedObservation.parse("0.253"))
+        model, confidence = store.find_nearest(NormalizedObservation.parse("0.253"))
 
-        self.assertIsNotNone(record)
-        self.assertEqual("kitchen", record.label)
+        self.assertIsNotNone(model)
+        self.assertEqual("kitchen", model.label)
         self.assertGreater(confidence, 0.5)
         self.assertLess(confidence, 1.0)
 
@@ -78,20 +78,20 @@ class FindNearestTests(unittest.TestCase):
         store = MemoryStore(self.memory_path)
         store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
 
-        record, confidence = store.find_nearest(NormalizedObservation.parse("0.40"))
+        model, confidence = store.find_nearest(NormalizedObservation.parse("0.40"))
 
         self.assertAlmostEqual(confidence, 0.0)
-        self.assertIsNone(record)
+        self.assertIsNone(model)
 
     def test_nearest_wins_among_multiple(self) -> None:
         store = MemoryStore(self.memory_path)
         store.learn_location(NormalizedObservation.parse("0.20"), "lobby")
         store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
 
-        record, confidence = store.find_nearest(NormalizedObservation.parse("0.245"))
+        model, confidence = store.find_nearest(NormalizedObservation.parse("0.245"))
 
-        self.assertIsNotNone(record)
-        self.assertEqual("kitchen", record.label)
+        self.assertIsNotNone(model)
+        self.assertEqual("kitchen", model.label)
 
     def test_equidistant_returns_one_deterministically(self) -> None:
         store = MemoryStore(self.memory_path)
@@ -99,10 +99,10 @@ class FindNearestTests(unittest.TestCase):
         store.learn_location(NormalizedObservation.parse("0.24"), "kitchen")
 
         # Query at 0.22 is equidistant from 0.20 and 0.24 (distance 0.02 each).
-        record, confidence = store.find_nearest(NormalizedObservation.parse("0.22"))
+        model, confidence = store.find_nearest(NormalizedObservation.parse("0.22"))
 
-        self.assertIsNotNone(record)
-        self.assertIn(record.label, {"lobby", "kitchen"})
+        self.assertIsNotNone(model)
+        self.assertIn(model.label, {"lobby", "kitchen"})
         self.assertGreater(confidence, 0.5)
 
 
@@ -166,9 +166,10 @@ class ReinforcementIntegrationTests(unittest.TestCase):
         # Before any confirmations.
         _, conf_before = store.find_nearest(noisy)
 
-        # Simulate a correct guess confirmation on the exact key.
+        # Simulate a correct guess confirmation on the exact value.
         exact = NormalizedObservation.parse("0.25")
-        store.record_correct_guess(exact)
+        model, _ = store.find_nearest(exact)
+        store.record_correct_guess(exact, matched_model=model)
 
         # After one confirmation, noisy confidence should be higher.
         _, conf_after = store.find_nearest(noisy)
@@ -184,11 +185,72 @@ class ReinforcementIntegrationTests(unittest.TestCase):
         for _ in range(5):
             _, conf = store.find_nearest(noisy)
             confidences.append(conf)
-            store.record_correct_guess(exact)
+            model, _ = store.find_nearest(exact)
+            store.record_correct_guess(exact, matched_model=model)
 
         # Each successive confidence should be >= the previous.
         for i in range(1, len(confidences)):
             self.assertGreaterEqual(confidences[i], confidences[i - 1])
+
+
+class MergeShiftsPrototypeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.memory_path = Path(self.temporary_directory.name) / "location_memory.json"
+
+    def test_merge_shifts_prototype(self) -> None:
+        store = MemoryStore(self.memory_path)
+        _, model = store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
+        self.assertAlmostEqual(model.prototype, 0.25)
+
+        obs = NormalizedObservation.parse("0.26")
+        old_model, new_model = store.merge_observation(model, obs.value)
+        self.assertAlmostEqual(new_model.prototype, 0.255)
+        self.assertEqual(new_model.observation_count, 2)
+
+    def test_confidence_computed_against_shifted_prototype(self) -> None:
+        store = MemoryStore(self.memory_path)
+        _, model = store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
+        # Merge 0.26 → prototype shifts to 0.255.
+        store.merge_observation(model, 0.26)
+
+        # Query at 0.255 (the new prototype) should give high confidence.
+        found, conf = store.find_nearest(NormalizedObservation.parse("0.255"))
+        self.assertIsNotNone(found)
+        self.assertEqual("kitchen", found.label)
+        self.assertAlmostEqual(conf, 1.0)
+
+
+class OutlierDetectionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.memory_path = Path(self.temporary_directory.name) / "location_memory.json"
+
+    def test_single_obs_model_uses_tolerance_as_floor(self) -> None:
+        store = MemoryStore(self.memory_path)
+        _, model = store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
+        # Outlier threshold = 3.0 * max(0.0, 0.05) = 0.15
+        # 0.10 distance from 0.25 is NOT an outlier.
+        self.assertFalse(store.is_outlier(model, 0.35))
+        # 0.20 distance IS an outlier (> 0.15).
+        self.assertTrue(store.is_outlier(model, 0.45))
+
+    def test_model_with_tight_spread_detects_outlier(self) -> None:
+        store = MemoryStore(self.memory_path)
+        _, model = store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
+        # Build tight cluster: merge several very close values.
+        for v in [0.251, 0.249, 0.250, 0.251, 0.249]:
+            _, model = store.merge_observation(model, v)
+        # Spread should be very small (< 0.001).
+        self.assertLess(model.spread, 0.001)
+        # Outlier threshold = 3.0 * max(spread, 0.05) = 3.0 * 0.05 = 0.15
+        # (tolerance dominates for such small spread)
+        # At 0.20 distance: outlier.
+        self.assertTrue(store.is_outlier(model, 0.45))
+        # At 0.10 distance: not outlier.
+        self.assertFalse(store.is_outlier(model, 0.35))
 
 
 if __name__ == "__main__":

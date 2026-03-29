@@ -1,8 +1,8 @@
 # Current Phase
 
 - Status: in-progress
-- Phase number: 2
-- Title: Noisy Scalar Matching and Confidence Calibration
+- Phase number: 3
+- Title: Multi-Observation Location Models
 - Validation result: pending
 
 ---
@@ -38,24 +38,12 @@ python3 -m location_agent.cli --help
 ```
 ========================================================
   Tree-of-Thought Location Agent
-  Phase 2: Noisy Scalar Matching and Confidence Calibration
+  Phase 3: Multi-Observation Location Models
 ========================================================
 
-This agent learns to associate grayscale observations
-with location labels. It remembers what you teach it
-and tries to guess on future observations.
-
-HOW IT WORKS
-  1. You enter a grayscale value (a decimal from 0.0 to 1.0).
-  2. If the agent recognizes it (exact or close match),
-     it guesses the location and asks you to confirm.
-  3. If the agent is unsure, it shows its best guess
-     but asks you to confirm or provide a label.
-  4. If the agent does NOT recognize it, it asks you
-     to provide a location label so it can learn.
-
-Type 'quit' at any time to exit.
---------------------------------------------------------
+Repeated observations now merge into location models.
+Each model tracks a running-mean prototype and spread.
+Type 'inspect' at any time to see all stored models.
 
 Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: 0.25
 This is a new observation — I haven't seen this value before.
@@ -67,18 +55,19 @@ I recognize this! My guess: "kitchen" (confidence: 97%)
 Is this correct? (yes/no): yes
 Great — my memory is reinforced.
 
-Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: 0.90
-This is a new observation — I haven't seen this value before.
-What location does this represent? Enter a label: lobby
-Learned! 0.900000 → "lobby"
+Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: inspect
+--- Location Models ---
+  kitchen : proto=0.251500  obs=2  spread=0.001500  guesses=1
+--- End ---
 
 Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: quit
 
 --- Session Summary ---
-  Observations entered : 3
-  New locations learned : 2
+  Observations entered : 2
+  New locations learned : 1
   Correct guesses      : 1
   Wrong guesses        : 0
+  Observations merged  : 1
 -----------------------
 goodbye
 ```
@@ -89,15 +78,16 @@ goodbye
 python3 -m pytest tests/ -v
 ```
 
-Expected: 30 tests pass (16 confidence/distance, 3 memory, 9 session, 2 stress).
+Expected: 64 tests pass (28 confidence/distance/merge/outlier, 7 memory/migration/inspect, 14 model, 13 session, 3 stress).
 
 ### What to Check After Running
 
-- `runtime/location_memory.json` — Should contain `schema_version: 2`, `tolerance` in confidence_policy, and your learned observations
-- `runtime/agent_events.jsonl` — Should contain logged events for the session
+- `runtime/location_memory.json` — Should contain `schema_version: 3`, `location_models` dict keyed by location ID, and `outlier_factor` in confidence_policy
+- `runtime/agent_events.jsonl` — Should contain logged events including `merge_observation` and `model_created` mutation kinds
 - The agent should recall observations across restarts
-- Noisy observations (e.g. 0.253 after learning 0.25) should produce a confident guess with < 100% confidence
-- Far observations (e.g. 0.90 after only learning 0.25) should trigger the unknown path
+- Confirming a noisy match should merge the observation into the existing model, shifting the prototype
+- The `inspect` command should show all stored models with prototype, observation count, and spread
+- Existing v1 or v2 memory files should be auto-migrated to v3 on load
 
 ### What Success Looks Like
 

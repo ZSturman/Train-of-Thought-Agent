@@ -1,8 +1,60 @@
 # Validation
 
+## Phase 3 - Multi-Observation Location Models
+
+- Status: pending
+
+### What was tested
+
+- Automated unit, regression, and stress suite via `python3 -m pytest tests/ -v`
+- Model math: compute_spread, LocationModel creation, serialization round-trip, with_merged_observation (2/5/10 merges), immutability, from_record conversion
+- Merge behavior: merge shifts prototype, confidence computed against shifted prototype
+- Outlier detection: single-observation model uses tolerance as floor, tight-spread model detects outlier
+- Memory store: blank bootstrap with location_models, find_nearest against prototypes, learn-and-reload via lookup_by_id, inspect_models
+- Schema migration: v2→v3 structural migration, v1→v3 chained migration
+- Session: correct guess with merge, noisy merge shifts prototype, repeated confirmations shift progressively, inspect command, merge event logging, outlier/collision paths
+- Stress: 1000 unique observations, 100 observations with noisy queries, 100 models × 10 merges each
+
+### What passed
+
+- All 64 automated tests passed
+- Phase 1+2 regression tests adapted and passing (memory, session, confidence)
+- New Phase 3 tests pass (14 model, 2 merge/outlier confidence, 4 memory/migration/inspect, 5 session merge/inspect/event, 1 merge stress)
+
+### What failed
+
+- No automated test failures
+
+### Edge cases
+
+- All Phase 1+2 edge cases still covered
+- Single-observation model has spread=0; outlier detection uses tolerance as floor
+- Merge recomputes prototype as exact arithmetic mean of all stored observation values
+- LocationModel is frozen/immutable; with_merged_observation returns a new instance
+- Chained migration: v1 files migrate through v2 policy update then v3 structural conversion
+- Inspect on empty store returns empty list
+- Near-collision guard uses model prototype (not observation key) for distance check
+
+### Stress tests or benchmarks
+
+- 1000-observation learn+reload stress test passes
+- 100-observation noisy-query classification stress test passes
+- 100 models × 10 merges stress test passes
+
+### Unresolved issues
+
+- Labels are still plain strings rather than first-class nodes (Phase 4)
+- Runtime persistence remains single-writer JSON and JSONL only
+- Nearest-neighbor search is linear scan over all model prototypes (sufficient for current scale)
+- Outlier detection warns but does not block — user can always confirm
+
+### Disposition
+
+- pending
+
 ## Phase 2 - Noisy Scalar Matching and Confidence Calibration
 
-- Status: in-progress
+- Status: accepted
 
 ### What was tested
 
