@@ -13,6 +13,9 @@ python3 -m location_agent.cli
 # Run in quiet/scripting mode
 python3 -m location_agent.cli --quiet
 
+# Reset all learned memory
+python3 -m location_agent.cli --reset
+
 # Run all tests
 python3 -m pytest tests/ -v
 ```
@@ -59,6 +62,15 @@ For detailed phase-specific instructions, example sessions, and validation steps
 5. Every observation, decision, and memory change is logged for inspection
 
 The agent remembers across sessions — restart it and your taught locations persist.
+
+## Resetting Memory
+
+To clear all learned locations:
+
+- **During a session:** Type `reset` at the observation prompt. You will be asked to confirm before anything is deleted.
+- **From the command line:** Run `python3 -m location_agent.cli --reset` to clear memory and exit immediately (no confirmation prompt — suitable for scripting).
+
+Only learned location models are cleared. The event log (`runtime/agent_events.jsonl`) is preserved as an immutable audit trail.
 
 ## Phase Documentation
 

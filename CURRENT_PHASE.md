@@ -44,6 +44,7 @@ python3 -m location_agent.cli --help
 Repeated observations now merge into location models.
 Each model tracks a running-mean prototype and spread.
 Type 'inspect' at any time to see all stored models.
+Type 'reset' to clear all learned memory.
 
 Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: 0.25
 This is a new observation — I haven't seen this value before.
@@ -59,6 +60,10 @@ Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: inspect
 --- Location Models ---
   kitchen : proto=0.251500  obs=2  spread=0.001500  guesses=1
 --- End ---
+
+Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: reset
+Are you sure? This will delete all learned locations. (yes/no): yes
+Memory reset — 1 location model(s) removed.
 
 Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: quit
 
@@ -78,7 +83,7 @@ goodbye
 python3 -m pytest tests/ -v
 ```
 
-Expected: 64 tests pass (28 confidence/distance/merge/outlier, 7 memory/migration/inspect, 14 model, 13 session, 3 stress).
+Expected: 71+ tests pass (28 confidence/distance/merge/outlier, 11 memory/migration/inspect/reset, 14 model, 16 session, 3 stress).
 
 ### What to Check After Running
 
@@ -87,6 +92,8 @@ Expected: 64 tests pass (28 confidence/distance/merge/outlier, 7 memory/migratio
 - The agent should recall observations across restarts
 - Confirming a noisy match should merge the observation into the existing model, shifting the prototype
 - The `inspect` command should show all stored models with prototype, observation count, and spread
+- The `reset` command should clear all learned models after confirmation, and cancel if declined
+- The `--reset` CLI flag should clear memory and exit without starting a session
 - Existing v1 or v2 memory files should be auto-migrated to v3 on load
 
 ### What Success Looks Like
@@ -101,6 +108,8 @@ Expected: 64 tests pass (28 confidence/distance/merge/outlier, 7 memory/migratio
 8. Quitting shows a summary of what happened in the session
 9. Restarting the agent and entering a previously learned value still produces the correct guess
 10. Schema v1 memory files are transparently migrated to v2 on load
+11. Typing `reset` and confirming clears all learned models; `inspect` shows empty afterwards
+12. Running `python3 -m location_agent.cli --reset` clears memory without starting a session
 
 ---
 

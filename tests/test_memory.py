@@ -169,5 +169,45 @@ class InspectModelsTests(unittest.TestCase):
             self.assertIn("observation_count", m)
 
 
+class ResetMemoryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.memory_path = Path(self.temporary_directory.name) / "location_memory.json"
+
+    def test_reset_clears_all_models(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
+        store.learn_location(NormalizedObservation.parse("0.90"), "lobby")
+        self.assertEqual(2, len(store.inspect_models()))
+
+        count = store.reset_memory()
+
+        self.assertEqual(2, count)
+        self.assertEqual([], store.inspect_models())
+
+    def test_reset_returns_zero_on_empty_store(self) -> None:
+        store = MemoryStore(self.memory_path)
+        count = store.reset_memory()
+        self.assertEqual(0, count)
+        self.assertEqual([], store.inspect_models())
+
+    def test_reset_persists_across_reload(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.50"), "hallway")
+        store.reset_memory()
+
+        reloaded = MemoryStore(self.memory_path)
+        self.assertEqual([], reloaded.inspect_models())
+        self.assertEqual(3, reloaded.data["schema_version"])
+
+    def test_reset_preserves_schema_version(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.25"), "kitchen")
+        store.reset_memory()
+        self.assertEqual(3, store.data["schema_version"])
+        self.assertIn("confidence_policy", store.data)
+
+
 if __name__ == "__main__":
     unittest.main()

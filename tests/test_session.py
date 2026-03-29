@@ -399,6 +399,84 @@ class SessionControllerTests(unittest.TestCase):
         new_rec = merge_events[0]["new_record"]
         self.assertEqual(2, len(new_rec["observation_values"]))
 
+    # -- Reset command tests ----------------------------------------------
+
+    def test_reset_command_confirmed_clears_memory(self) -> None:
+        """Typing 'reset' then 'yes' clears all learned models."""
+        feeder = InputFeeder([
+            "0.25", "kitchen",
+            "0.90", "lobby",
+            "reset", "yes",
+            "inspect",
+            "quit",
+        ])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        combined = "\n".join(output.lines)
+        self.assertIn("reset: 2 models cleared", combined)
+        self.assertIn("empty", combined)
+
+        reloaded = MemoryStore(self.memory_path)
+        self.assertEqual([], reloaded.inspect_models())
+
+    def test_reset_command_cancelled_preserves_memory(self) -> None:
+        """Typing 'reset' then 'no' leaves memory intact."""
+        feeder = InputFeeder([
+            "0.25", "kitchen",
+            "reset", "no",
+            "inspect",
+            "quit",
+        ])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        combined = "\n".join(output.lines)
+        self.assertIn("reset cancelled", combined)
+
+        reloaded = MemoryStore(self.memory_path)
+        self.assertEqual(1, len(reloaded.inspect_models()))
+
+    def test_reset_event_logged(self) -> None:
+        """Reset operations log a memory_mutation event with 'memory_reset' kind."""
+        feeder = InputFeeder(["0.25", "kitchen", "reset", "yes", "quit"])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        events = self._parse_events()
+        reset_events = [
+            e for e in events
+            if e["event_type"] == "memory_mutation" and e["mutation_kind"] == "memory_reset"
+        ]
+        self.assertEqual(1, len(reset_events))
+
 
 if __name__ == "__main__":
     unittest.main()

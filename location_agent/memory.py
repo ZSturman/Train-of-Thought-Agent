@@ -120,6 +120,18 @@ class MemoryStore:
         threshold = self.outlier_factor * max(model.spread, self.tolerance)
         return scalar_distance(value, model.prototype) > threshold
 
+    # -- reset -----------------------------------------------------------
+
+    def reset_memory(self) -> int:
+        """Clear all learned location models and reinitialize the store.
+
+        Returns the number of models that were removed.
+        """
+        count = len(self._data.get("location_models", {}))
+        self._data = self._empty_payload()
+        self._save()
+        return count
+
     # -- mutations -------------------------------------------------------
 
     def learn_location(

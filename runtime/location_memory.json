@@ -6,196 +6,31 @@
     "outlier_factor": 3.0,
     "tolerance": 0.05
   },
-  "created_at": "2026-03-26T08:47:07+00:00",
+  "created_at": "2026-03-29T01:21:47+00:00",
   "location_models": {
-    "loc-12cfccf505e8": {
-      "correct_count": 2,
-      "first_seen_at": "2026-03-26T08:47:10+00:00",
-      "guess_count": 2,
-      "incorrect_count": 0,
-      "label": "kitchen",
-      "last_seen_at": "2026-03-28T00:20:26+00:00",
-      "location_id": "loc-12cfccf505e8",
-      "observation_count": 3,
-      "observation_values": [
-        0.25
-      ],
-      "prototype": 0.25,
-      "spread": 0.0
-    },
-    "loc-1797e547d8f2": {
-      "correct_count": 1,
-      "first_seen_at": "2026-03-26T08:48:16+00:00",
-      "guess_count": 1,
-      "incorrect_count": 0,
-      "label": "office",
-      "last_seen_at": "2026-03-26T08:48:17+00:00",
-      "location_id": "loc-1797e547d8f2",
-      "observation_count": 2,
-      "observation_values": [
-        0.333333
-      ],
-      "prototype": 0.333333,
-      "spread": 0.0
-    },
-    "loc-1f0a5d9c6e22": {
+    "loc-4e09cd212443": {
       "correct_count": 0,
-      "first_seen_at": "2026-03-29T01:10:30+00:00",
+      "first_seen_at": "2026-03-29T01:22:01+00:00",
       "guess_count": 0,
       "incorrect_count": 0,
-      "label": "basement",
-      "last_seen_at": "2026-03-29T01:10:30+00:00",
-      "location_id": "loc-1f0a5d9c6e22",
+      "label": "five",
+      "last_seen_at": "2026-03-29T01:22:01+00:00",
+      "location_id": "loc-4e09cd212443",
       "observation_count": 1,
-      "observation_values": [
-        0.65
-      ],
-      "prototype": 0.65,
-      "spread": 0.0
-    },
-    "loc-2b6e9ded0b27": {
-      "correct_count": 0,
-      "first_seen_at": "2026-03-28T22:47:23+00:00",
-      "guess_count": 0,
-      "incorrect_count": 0,
-      "label": "nothing",
-      "last_seen_at": "2026-03-28T22:47:23+00:00",
-      "location_id": "loc-2b6e9ded0b27",
-      "observation_count": 1,
-      "observation_values": [
-        0.91
-      ],
-      "prototype": 0.91,
-      "spread": 0.0
-    },
-    "loc-48c44626be2d": {
-      "correct_count": 0,
-      "first_seen_at": "2026-03-28T22:47:11+00:00",
-      "guess_count": 0,
-      "incorrect_count": 0,
-      "label": "Nothing",
-      "last_seen_at": "2026-03-28T22:47:11+00:00",
-      "location_id": "loc-48c44626be2d",
-      "observation_count": 1,
-      "observation_values": [
-        0.8
-      ],
-      "prototype": 0.8,
-      "spread": 0.0
-    },
-    "loc-5cb15694ca25": {
-      "correct_count": 1,
-      "first_seen_at": "2026-03-28T22:46:57+00:00",
-      "guess_count": 2,
-      "incorrect_count": 1,
-      "label": "foyer",
-      "last_seen_at": "2026-03-29T00:00:19+00:00",
-      "location_id": "loc-5cb15694ca25",
-      "observation_count": 3,
-      "observation_values": [
-        0.9
-      ],
-      "prototype": 0.9,
-      "spread": 0.0
-    },
-    "loc-6f2870d33bdd": {
-      "correct_count": 2,
-      "first_seen_at": "2026-03-28T00:33:03+00:00",
-      "guess_count": 2,
-      "incorrect_count": 0,
-      "label": "lobby",
-      "last_seen_at": "2026-03-28T00:33:40+00:00",
-      "location_id": "loc-6f2870d33bdd",
-      "observation_count": 3,
-      "observation_values": [
-        0.99
-      ],
-      "prototype": 0.99,
-      "spread": 0.0
-    },
-    "loc-81a9886ab837": {
-      "correct_count": 2,
-      "first_seen_at": "2026-03-29T00:36:57+00:00",
-      "guess_count": 2,
-      "incorrect_count": 0,
-      "label": "One",
-      "last_seen_at": "2026-03-29T00:37:10+00:00",
-      "location_id": "loc-81a9886ab837",
-      "observation_count": 3,
-      "observation_values": [
-        0.1
-      ],
-      "prototype": 0.1,
-      "spread": 0.0
-    },
-    "loc-940a2c05259b": {
-      "correct_count": 0,
-      "first_seen_at": "2026-03-29T00:31:32+00:00",
-      "guess_count": 0,
-      "incorrect_count": 0,
-      "label": "The middle",
-      "last_seen_at": "2026-03-29T00:31:32+00:00",
-      "location_id": "loc-940a2c05259b",
-      "observation_count": 1,
-      "observation_values": [
-        0.55
-      ],
-      "prototype": 0.55,
-      "spread": 0.0
-    },
-    "loc-99a638e77850": {
-      "correct_count": 1,
-      "first_seen_at": "2026-03-29T00:18:30+00:00",
-      "guess_count": 1,
-      "incorrect_count": 0,
-      "label": "garage",
-      "last_seen_at": "2026-03-29T00:18:30+00:00",
-      "location_id": "loc-99a638e77850",
-      "observation_count": 2,
-      "observation_values": [
-        0.42
-      ],
-      "prototype": 0.42,
-      "spread": 0.0
-    },
-    "loc-a8ab3f7c6675": {
-      "correct_count": 1,
-      "first_seen_at": "2026-03-28T22:47:31+00:00",
-      "guess_count": 1,
-      "incorrect_count": 0,
-      "label": "nothing",
-      "last_seen_at": "2026-03-29T00:36:46+00:00",
-      "location_id": "loc-a8ab3f7c6675",
-      "observation_count": 2,
-      "observation_values": [
-        0.2
-      ],
-      "prototype": 0.2,
-      "spread": 0.0
-    },
-    "loc-aa0c66e299bb": {
-      "correct_count": 7,
-      "first_seen_at": "2026-03-28T22:46:32+00:00",
-      "guess_count": 7,
-      "incorrect_count": 0,
-      "label": "The middle",
-      "last_seen_at": "2026-03-29T00:36:38+00:00",
-      "location_id": "loc-aa0c66e299bb",
-      "observation_count": 8,
       "observation_values": [
         0.5
       ],
       "prototype": 0.5,
       "spread": 0.0
     },
-    "loc-e0121cb112d1": {
+    "loc-7012a6b022ea": {
       "correct_count": 0,
-      "first_seen_at": "2026-03-29T00:18:32+00:00",
+      "first_seen_at": "2026-03-29T01:22:15+00:00",
       "guess_count": 0,
       "incorrect_count": 0,
-      "label": "basement",
-      "last_seen_at": "2026-03-29T00:18:32+00:00",
-      "location_id": "loc-e0121cb112d1",
+      "label": "five",
+      "last_seen_at": "2026-03-29T01:22:15+00:00",
+      "location_id": "loc-7012a6b022ea",
       "observation_count": 1,
       "observation_values": [
         0.6
@@ -205,5 +40,5 @@
     }
   },
   "schema_version": 3,
-  "updated_at": "2026-03-29T01:10:30+00:00"
+  "updated_at": "2026-03-29T01:22:15+00:00"
 }

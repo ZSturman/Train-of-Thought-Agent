@@ -36,6 +36,7 @@ HOW IT WORKS
 
 Type 'quit' at any time to exit.
 Type 'inspect' to view learned location models.
+Type 'reset' to clear all learned memory.
 --------------------------------------------------------"""
 
 _WELCOME_QUIET = "agent online"
@@ -147,6 +148,21 @@ class SessionController:
             return "invalid feedback: enter 1 or 0"
         return "Please answer yes or no (y/n also accepted)."
 
+    def _msg_reset_confirm(self) -> str:
+        if self.quiet:
+            return "reset all memory?[yes/no]: "
+        return "Are you sure? This will delete all learned locations. (yes/no): "
+
+    def _msg_reset_done(self, count: int) -> str:
+        if self.quiet:
+            return f"reset: {count} models cleared"
+        return f"Memory reset — {count} location model(s) removed."
+
+    def _msg_reset_cancelled(self) -> str:
+        if self.quiet:
+            return "reset cancelled"
+        return "Reset cancelled — memory unchanged."
+
     def _format_inspect(self) -> str:
         models = self.store.inspect_models()
         if not models:
@@ -168,6 +184,24 @@ class SessionController:
                 )
         return "\n".join(lines)
 
+    def _handle_reset(self) -> None:
+        """Prompt for confirmation and reset all learned memory."""
+        try:
+            raw = self.input_func(self._msg_reset_confirm())
+        except EOFError:
+            return
+        if raw.strip().lower() in {"1", "yes", "y"}:
+            count = self.store.reset_memory()
+            self.output_func(self._msg_reset_done(count))
+            self.event_logger.log(
+                "memory_mutation",
+                session_id=self.session_id,
+                mutation_kind="memory_reset",
+                notes=f"user_reset_{count}_models",
+            )
+        else:
+            self.output_func(self._msg_reset_cancelled())
+
     # -- main loop ---------------------------------------------------
 
     def run(self) -> None:
@@ -188,6 +222,9 @@ class SessionController:
                 return
             if stripped == "inspect":
                 self.output_func(self._format_inspect())
+                continue
+            if stripped == "reset":
+                self._handle_reset()
                 continue
             try:
                 observation = NormalizedObservation.parse(raw)
