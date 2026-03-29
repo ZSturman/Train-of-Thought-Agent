@@ -2,37 +2,39 @@
 
 ## Immediate Tasks
 
-- Run manual CLI smoke test for Phase 3 and validate
-- Accept or revise Phase 3 based on validation results
+- Decide whether to accept Phase 4 after manual validation
+- Fill the final Phase 4 disposition in `VALIDATION.md`
 
 ## Tasks Needed Before Phase Completion
 
-- Manual CLI smoke sequence: learn a value, re-enter with noise, confirm merge, run `inspect`, verify prototype shift
-- Verify schema v2 → v3 migration by running against existing runtime/location_memory.json
-- Fill VALIDATION.md disposition for Phase 3
+- Review whether duplicate-label migration disambiguation needs a more explicit user-facing policy
+- Decide whether no-op rename/alias commands should stay silent or be logged
+- Record a refreshed manual smoke sequence that covers label reuse and `sense /path/to/file`
 
 ## Next Phase Tasks
 
-- Promote labels from plain strings to first-class label nodes (Phase 4)
-- Design label graph with edges for proximity, correction, and co-occurrence
-- Add label inspection and graph query tooling
+- Begin Phase 5: Nested Location Context
+- Build CLI-facing workflows for teaching containment and overlap relations
+- Expand active-context inspection so parent and overlapping locations remain visible during movement
+- Prepare Phase 6 concept-node commands and validation hooks before entity work begins
 
 ## Deferred Improvements
 
-- Add richer inspection tooling after the core memory loop stabilizes
-- Consider replacing linear confidence decay with a more sophisticated function
-- Consider adaptive tolerance per-location based on observation spread
-- Compact raw observation values after N observations to control memory growth
+- Add richer inspection tooling for rename history details
+- Consider richer span models for non-convex locations instead of relying only on inclusive min/max bounds
+- Consider indexed nearest-neighbor lookup when model counts grow
+- Consider richer sensor fingerprints for near-duplicate media rather than exact file matches only
+- Consider explicit ambiguity handling when shared labels become in-scope
 
 ## Technical Debt
 
-- Runtime persistence is single-writer JSON and JSONL only
-- CLI interaction is intentionally simple and synchronous
-- Nearest-neighbor search is linear scan over all model prototypes (fine for < 1000 models)
-- `LocationRecord` kept in models.py only for migration; can be removed once v2 files are extinct
+- Runtime persistence is still single-writer JSON and JSONL only
+- CLI interaction remains intentionally synchronous and line-oriented
+- Name resolution and graph traversal are rebuilt by scanning in-memory structures
+- Duplicate v3 labels are auto-suffixed during migration; that policy may need a dedicated UX later
 
 ## Research Questions
 
-- Should tolerance become adaptive per-model based on the model's spread?
-- How should label nodes relate to each other in the Phase 4 graph?
-- Should future ambiguity prompts show ranked candidate models?
+- When overlapping or contextual labels arrive, should ambiguity be resolved by ranked candidates or explicit clarification prompts?
+- Should alias lookup remain case-insensitive once richer language-like labels appear?
+- How should label, concept, and future entity nodes share graph-edge semantics without overfitting the ontology too early?

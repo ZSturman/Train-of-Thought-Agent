@@ -1,10 +1,10 @@
 {
-  "current_phase": 3,
+  "current_phase": 4,
   "phase_status_map": {
     "1": "completed",
     "2": "completed",
-    "3": "in-progress",
-    "4": "pending",
+    "3": "completed",
+    "4": "in-progress",
     "5": "pending",
     "6": "pending",
     "7": "pending",
@@ -18,26 +18,33 @@
     "15": "pending",
     "16": "pending",
     "17": "pending",
-    "18": "pending"
+    "18": "pending",
+    "19": "pending",
+    "20": "pending",
+    "21": "pending"
   },
   "completed_phases": [
     1,
-    2
+    2,
+    3
   ],
   "failed_phases": [],
   "blocked_phases": [],
   "pending_revisions": [],
-  "active_branch_goal": "Phase 3 - Multi-Observation Location Models",
+  "active_branch_goal": "Phase 4 - First-Class Labels",
   "end_goal_summary": "A continuously learning, inspectable agent that anchors interpretation in location, learns from observation and correction instead of pretrained world knowledge, forms labels, entities, relations, episodes, affordances, and composite events online, and ultimately reasons about real-world location change at the granularity of doorway, hallway, room, and building.",
-  "last_validated_phase": 2,
-  "next_recommended_phase": 3,
+  "last_validated_phase": 3,
+  "next_recommended_phase": 4,
   "notes": [
     "Workspace was empty when bootstrapping the project on 2026-03-26.",
     "Tracking artifacts are the authoritative continuity state from the first write onward.",
     "Phase 1 was accepted on 2026-03-26 after 6 automated tests and a manual CLI smoke sequence.",
-    "Runtime sample memory currently includes validated smoke observations for kitchen at 0.250000 and office at 0.333333.",
-    "Phase 2 implementation started on 2026-03-28: distance-based matching, confidence calibration, uncertain-guess path, near-collision guard, schema v1→v2 migration.",
-    "Phase 2 accepted on 2026-03-28. 30 automated tests pass.",
-    "Phase 3 implementation started: location models with running-mean prototypes, merge-on-confirm, outlier detection, inspect command, schema v2→v3 migration, chained migration v1→v2→v3. 64 automated tests pass."
+    "Phase 2 was accepted on 2026-03-28 after 30 automated tests.",
+    "Phase 3 is treated as completed and validated before starting Phase 4.",
+    "Phase 4 implementation started on 2026-03-28 with first-class label nodes, alias handling, rename history, rename/alias CLI commands, and richer inspect output.",
+    "On 2026-03-29 the roadmap was revised to insert three location-focused phases before entity work: nested location context, location graph/concept setup, and simulated sensor recognition.",
+    "Runtime schema is now v5 with graph edges, concept nodes, sensor bindings, and provenance-aware evidence records.",
+    "Phase 4 automated validation currently passes with 101 unittest cases, including label reuse, span-aware recognition, nested context, sensor recognition, and provenance coverage.",
+    "Phase 4 manual smoke validation needs a refreshed run that covers both reused labels and `sense /path/to/file` before final acceptance."
   ]
 }

@@ -11,7 +11,8 @@ from location_agent.session import SessionController
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Tree-of-Thought Location Agent — an interactive learning agent "
-        "that associates grayscale observations with location labels.",
+        "that associates grayscale observations and sensor-path inputs with "
+        "first-class location labels.",
     )
     parser.add_argument(
         "-q",

@@ -4,7 +4,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from location_agent.models import LocationModel, LocationRecord, NormalizedObservation, SCHEMA_VERSION, utc_now_iso
+from location_agent.models import (
+    LabelNode,
+    LocationModel,
+    LocationRecord,
+    NormalizedObservation,
+    SCHEMA_VERSION,
+    SensorObservation,
+    utc_now_iso,
+)
 
 
 class EventLogger:
@@ -20,26 +28,36 @@ class EventLogger:
         *,
         session_id: str,
         observation: NormalizedObservation | None = None,
+        sensor_observation: SensorObservation | None = None,
         guessed_label: str | None = None,
         confidence: float | None = None,
         feedback: int | None = None,
         mutation_kind: str | None = None,
-        old_record: LocationRecord | LocationModel | None = None,
-        new_record: LocationRecord | LocationModel | None = None,
+        old_record: LocationRecord | LocationModel | LabelNode | dict[str, Any] | None = None,
+        new_record: LocationRecord | LocationModel | LabelNode | dict[str, Any] | None = None,
         notes: str | None = None,
     ) -> None:
-        def _serialize(rec: LocationRecord | LocationModel | None) -> dict[str, Any] | None:
-            if rec is None:
+        def _serialize(
+            record: LocationRecord | LocationModel | LabelNode | dict[str, Any] | None,
+        ) -> dict[str, Any] | None:
+            if record is None:
                 return None
-            return rec.to_dict()
+            if isinstance(record, dict):
+                return record
+            return record.to_dict()
 
         payload: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "timestamp": utc_now_iso(),
             "event_type": event_type,
             "session_id": session_id,
+            "observation_kind": "sensor" if sensor_observation is not None else "scalar",
             "observation_key": observation.key if observation else None,
             "observation_value": observation.value if observation else None,
+            "sensor_fingerprint": sensor_observation.fingerprint if sensor_observation else None,
+            "sensor_path": sensor_observation.resolved_path if sensor_observation else None,
+            "media_kind": sensor_observation.media_kind if sensor_observation else None,
+            "sensor_file_size": sensor_observation.file_size if sensor_observation else None,
             "guessed_label": guessed_label,
             "confidence": confidence,
             "feedback": feedback,

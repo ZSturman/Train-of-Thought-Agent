@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import math
 import unittest
 
 from location_agent.models import (
+    LabelNode,
     LocationModel,
     LocationRecord,
+    RenameRecord,
     compute_spread,
     utc_now_iso,
 )
@@ -22,13 +23,104 @@ class ComputeSpreadTests(unittest.TestCase):
         self.assertAlmostEqual(compute_spread([0.3, 0.3]), 0.0)
 
     def test_known_spread(self) -> None:
-        # values: [2, 4, 4, 4, 5, 5, 7, 9], mean=5, pop-stddev=2.0
         values = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
         self.assertAlmostEqual(compute_spread(values), 2.0)
 
     def test_two_values(self) -> None:
-        # [0.2, 0.4] → mean=0.3, pop stdev = sqrt(((0.1)^2 + (0.1)^2)/2) = 0.1
         self.assertAlmostEqual(compute_spread([0.2, 0.4]), 0.1)
+
+
+class LabelNodeTests(unittest.TestCase):
+    def test_serialization_round_trip(self) -> None:
+        ts = utc_now_iso()
+        node = LabelNode(
+            label_id="label-xyz",
+            canonical_name="Kitchen",
+            aliases=("galley", "prep area"),
+            rename_history=(
+                RenameRecord(
+                    old_name="pantry",
+                    new_name="Kitchen",
+                    renamed_at=ts,
+                ),
+            ),
+            created_at=ts,
+            updated_at=ts,
+        )
+
+        restored = LabelNode.from_dict(node.to_dict())
+
+        self.assertEqual(node.label_id, restored.label_id)
+        self.assertEqual(node.canonical_name, restored.canonical_name)
+        self.assertEqual(node.aliases, restored.aliases)
+        self.assertEqual(node.rename_history[0].old_name, restored.rename_history[0].old_name)
+
+    def test_with_alias_appends_new_alias(self) -> None:
+        ts = utc_now_iso()
+        node = LabelNode(
+            label_id="label-1",
+            canonical_name="kitchen",
+            aliases=(),
+            rename_history=(),
+            created_at=ts,
+            updated_at=ts,
+        )
+
+        updated = node.with_alias("galley")
+
+        self.assertEqual(("galley",), updated.aliases)
+        self.assertEqual("kitchen", updated.canonical_name)
+
+    def test_with_alias_ignores_duplicate_alias(self) -> None:
+        ts = utc_now_iso()
+        node = LabelNode(
+            label_id="label-1",
+            canonical_name="kitchen",
+            aliases=("galley",),
+            rename_history=(),
+            created_at=ts,
+            updated_at=ts,
+        )
+
+        updated = node.with_alias("Galley")
+
+        self.assertEqual(("galley",), updated.aliases)
+
+    def test_with_renamed_canonical_preserves_old_name_as_alias(self) -> None:
+        ts = utc_now_iso()
+        node = LabelNode(
+            label_id="label-1",
+            canonical_name="kitchen",
+            aliases=("galley",),
+            rename_history=(),
+            created_at=ts,
+            updated_at=ts,
+        )
+
+        updated = node.with_renamed_canonical("break room")
+
+        self.assertEqual("break room", updated.canonical_name)
+        self.assertIn("kitchen", updated.aliases)
+        self.assertIn("galley", updated.aliases)
+        self.assertEqual(1, len(updated.rename_history))
+        self.assertEqual("kitchen", updated.rename_history[0].old_name)
+
+    def test_with_renamed_canonical_promotes_existing_alias(self) -> None:
+        ts = utc_now_iso()
+        node = LabelNode(
+            label_id="label-1",
+            canonical_name="kitchen",
+            aliases=("galley", "prep area"),
+            rename_history=(),
+            created_at=ts,
+            updated_at=ts,
+        )
+
+        updated = node.with_renamed_canonical("galley")
+
+        self.assertEqual("galley", updated.canonical_name)
+        self.assertIn("kitchen", updated.aliases)
+        self.assertNotIn("galley", updated.aliases)
 
 
 class LocationModelCreationTests(unittest.TestCase):
@@ -36,7 +128,7 @@ class LocationModelCreationTests(unittest.TestCase):
         ts = utc_now_iso()
         model = LocationModel(
             location_id="loc-abc",
-            label="kitchen",
+            label_id="label-kitchen",
             prototype=0.25,
             observation_values=(0.25,),
             observation_count=1,
@@ -51,12 +143,13 @@ class LocationModelCreationTests(unittest.TestCase):
         self.assertAlmostEqual(model.spread, 0.0)
         self.assertEqual(model.observation_count, 1)
         self.assertEqual(model.observation_values, (0.25,))
+        self.assertEqual("label-kitchen", model.label_id)
 
     def test_serialization_round_trip(self) -> None:
         ts = utc_now_iso()
         model = LocationModel(
             location_id="loc-xyz",
-            label="lobby",
+            label_id="label-lobby",
             prototype=0.75,
             observation_values=(0.74, 0.75, 0.76),
             observation_count=3,
@@ -67,12 +160,13 @@ class LocationModelCreationTests(unittest.TestCase):
             first_seen_at=ts,
             last_seen_at=ts,
         )
-        d = model.to_dict()
-        restored = LocationModel.from_dict(d)
+
+        restored = LocationModel.from_dict(model.to_dict())
+
         self.assertEqual(model.location_id, restored.location_id)
-        self.assertEqual(model.label, restored.label)
+        self.assertEqual(model.label_id, restored.label_id)
         self.assertAlmostEqual(model.prototype, restored.prototype)
-        self.assertEqual(list(model.observation_values), list(restored.observation_values))
+        self.assertEqual(model.observation_values, restored.observation_values)
         self.assertAlmostEqual(model.spread, restored.spread)
         self.assertEqual(model.observation_count, restored.observation_count)
 
@@ -80,7 +174,7 @@ class LocationModelCreationTests(unittest.TestCase):
         ts = utc_now_iso()
         model = LocationModel(
             location_id="loc-a",
-            label="x",
+            label_id="label-a",
             prototype=0.5,
             observation_values=(0.5,),
             observation_count=1,
@@ -91,8 +185,11 @@ class LocationModelCreationTests(unittest.TestCase):
             first_seen_at=ts,
             last_seen_at=ts,
         )
-        d = model.to_dict()
-        self.assertIsInstance(d["observation_values"], list)
+
+        payload = model.to_dict()
+
+        self.assertIsInstance(payload["observation_values"], list)
+        self.assertEqual("label-a", payload["label_id"])
 
 
 class WithMergedObservationTests(unittest.TestCase):
@@ -100,7 +197,7 @@ class WithMergedObservationTests(unittest.TestCase):
         ts = utc_now_iso()
         model = LocationModel(
             location_id="loc-m",
-            label="kitchen",
+            label_id="label-kitchen",
             prototype=0.25,
             observation_values=(0.25,),
             observation_count=1,
@@ -111,7 +208,9 @@ class WithMergedObservationTests(unittest.TestCase):
             first_seen_at=ts,
             last_seen_at=ts,
         )
+
         merged = model.with_merged_observation(0.26)
+
         self.assertAlmostEqual(merged.prototype, 0.255)
         self.assertEqual(merged.observation_count, 2)
         self.assertEqual(len(merged.observation_values), 2)
@@ -121,7 +220,7 @@ class WithMergedObservationTests(unittest.TestCase):
         ts = utc_now_iso()
         model = LocationModel(
             location_id="loc-m",
-            label="kitchen",
+            label_id="label-kitchen",
             prototype=0.25,
             observation_values=(0.25,),
             observation_count=1,
@@ -133,20 +232,19 @@ class WithMergedObservationTests(unittest.TestCase):
             last_seen_at=ts,
         )
         values = [0.253, 0.248, 0.251, 0.249]
-        for v in values:
-            model = model.with_merged_observation(v)
-        all_vals = [0.25, 0.253, 0.248, 0.251, 0.249]
-        expected_mean = sum(all_vals) / len(all_vals)
-        expected_spread = compute_spread(all_vals)
-        self.assertAlmostEqual(model.prototype, expected_mean)
-        self.assertAlmostEqual(model.spread, expected_spread)
+        for value in values:
+            model = model.with_merged_observation(value)
+
+        all_values = [0.25, 0.253, 0.248, 0.251, 0.249]
+        self.assertAlmostEqual(model.prototype, sum(all_values) / len(all_values))
+        self.assertAlmostEqual(model.spread, compute_spread(all_values))
         self.assertEqual(model.observation_count, 5)
 
     def test_merge_ten_observations_converges(self) -> None:
         ts = utc_now_iso()
         model = LocationModel(
             location_id="loc-m",
-            label="kitchen",
+            label_id="label-kitchen",
             prototype=0.25,
             observation_values=(0.25,),
             observation_count=1,
@@ -157,21 +255,19 @@ class WithMergedObservationTests(unittest.TestCase):
             first_seen_at=ts,
             last_seen_at=ts,
         )
-        # Merge 9 more values around 0.25 with small noise.
         extras = [0.251, 0.249, 0.252, 0.248, 0.250, 0.253, 0.247, 0.251, 0.250]
-        for v in extras:
-            model = model.with_merged_observation(v)
+        for value in extras:
+            model = model.with_merged_observation(value)
+
         self.assertEqual(model.observation_count, 10)
-        # Prototype should be close to 0.25.
         self.assertAlmostEqual(model.prototype, 0.25, places=2)
-        # Spread should be small.
         self.assertLess(model.spread, 0.005)
 
     def test_merge_preserves_immutability(self) -> None:
         ts = utc_now_iso()
         model = LocationModel(
             location_id="loc-m",
-            label="kitchen",
+            label_id="label-kitchen",
             prototype=0.25,
             observation_values=(0.25,),
             observation_count=1,
@@ -182,8 +278,9 @@ class WithMergedObservationTests(unittest.TestCase):
             first_seen_at=ts,
             last_seen_at=ts,
         )
+
         merged = model.with_merged_observation(0.26)
-        # Original should be unchanged.
+
         self.assertAlmostEqual(model.prototype, 0.25)
         self.assertEqual(model.observation_count, 1)
         self.assertNotEqual(model.prototype, merged.prototype)
@@ -204,16 +301,18 @@ class FromRecordTests(unittest.TestCase):
             first_seen_at=ts,
             last_seen_at=ts,
         )
-        model = LocationModel.from_record(record)
-        self.assertEqual(model.location_id, "loc-old")
-        self.assertEqual(model.label, "kitchen")
+
+        model = LocationModel.from_record(record, label_id="label-kitchen")
+
+        self.assertEqual("loc-old", model.location_id)
+        self.assertEqual("label-kitchen", model.label_id)
         self.assertAlmostEqual(model.prototype, 0.25)
-        self.assertEqual(model.observation_values, (0.25,))
-        self.assertAlmostEqual(model.spread, 0.0)
-        self.assertEqual(model.observation_count, 3)
-        self.assertEqual(model.guess_count, 2)
-        self.assertEqual(model.correct_count, 1)
-        self.assertEqual(model.incorrect_count, 1)
+        self.assertEqual((0.25,), model.observation_values)
+        self.assertAlmostEqual(0.0, model.spread)
+        self.assertEqual(3, model.observation_count)
+        self.assertEqual(2, model.guess_count)
+        self.assertEqual(1, model.correct_count)
+        self.assertEqual(1, model.incorrect_count)
 
 
 if __name__ == "__main__":

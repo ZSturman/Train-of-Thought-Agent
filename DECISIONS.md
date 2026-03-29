@@ -113,3 +113,61 @@
 - Rationale: Enables recomputing prototype and spread with different algorithms in the future. Small memory cost at current scale.
 - Alternatives considered: Storing only running statistics (mean, count, sum-of-squares), discarding raw values after N observations
 - Consequences: Memory grows linearly with observation count per model. Acceptable for foreseeable scale; can be compacted later if needed.
+
+## Phase 4 - 2026-03-28
+
+### Decision: Use one canonical label node per location in Phase 4
+
+- Rationale: The goal is to promote labels to first-class nodes without introducing shared-label ambiguity yet.
+- Alternatives considered: Shared labels across locations immediately, multi-label locations
+- Consequences: Each location owns exactly one label node for now. Shared labels are deferred to a later ambiguity-aware phase.
+
+### Decision: Preserve old canonical names as active aliases on rename and correction
+
+- Rationale: Users should not lose previously learned vocabulary when they refine a label.
+- Alternatives considered: Storing rename history only, detaching the old name into a separate node
+- Consequences: Canonical names can evolve while older names still resolve deterministically to the same location.
+
+### Decision: Keep active canonical names and aliases globally unique
+
+- Rationale: Phase 4 explicitly defers ambiguity handling, so name resolution must stay deterministic.
+- Alternatives considered: Allowing duplicate aliases, returning multiple matches, prompting immediately on conflicts
+- Consequences: Learning, rename, and alias commands reject names already owned by another label node.
+
+### Decision: Disambiguate duplicate v3 labels during migration with numeric suffixes
+
+- Rationale: Existing v3 memory may contain repeated plain-string labels that cannot all remain active under the new uniqueness rule.
+- Alternatives considered: Failing migration, silently picking one owner, introducing shared labels early
+- Consequences: Migration keeps all locations, but later duplicates become `name (2)`, `name (3)`, etc., with rename history preserving the change.
+
+## Phase 4 Revision - 2026-03-29
+
+### Decision: Reusing an existing location label reinforces the same location model
+
+- Rationale: Users should be able to teach the same place with repeated observations without being forced to invent a new name. The label is not the identity; the location node is.
+- Alternatives considered: Keeping hard uniqueness errors during learning, automatically creating duplicate locations with the same name
+- Consequences: When a user supplies an already-known location label during learning, the observation merges into that location unless the user explicitly backs out during a conflict warning.
+
+### Decision: Treat confirmed scalar observations as an inclusive learned span for default recognition
+
+- Rationale: If a user confirms that `0.10` and `0.30` are both "Point one", the default behavior should be that `0.28` is probably also "Point one" unless competing evidence appears. Matching only against the running prototype throws away this stronger span signal.
+- Alternatives considered: Prototype-only matching, storing spread without using it for recognition, requiring explicit user relabeling for every interior value
+- Consequences: Scalar matching, near-collision checks, and outlier checks measure distance to the learned interval defined by confirmed observations rather than only to the prototype. Confidence now decays from the nearest confirmed boundary when a value falls just outside the span.
+
+### Decision: Allow sensor-first locations with no scalar prototype
+
+- Rationale: A file-backed sensor input can identify a location even when no grayscale observation exists yet. Creating a location without inventing a fake scalar keeps the memory grounded in direct evidence.
+- Alternatives considered: Requiring a scalar observation before any sensor binding, synthesizing placeholder scalar values
+- Consequences: `LocationModel.prototype` may be `None` until scalar evidence arrives. Scalar nearest-neighbor lookup skips sensor-only locations.
+
+### Decision: Add graph and concept scaffolding before entity work
+
+- Rationale: Nested or overlapping location context needs typed relationships and concept nodes before entities arrive. This supports later disambiguation without redesigning the storage model.
+- Alternatives considered: Deferring graph edges and concept nodes until after entities, hardcoding room/building hierarchy later
+- Consequences: Runtime schema v5 adds `graph_edges`, `concept_nodes`, `sensor_bindings`, and `evidence_records`, even though richer ambiguity handling remains a later phase.
+
+### Decision: Persist provenance only from `user` or `sensor`
+
+- Rationale: The LLM may help parse or normalize interaction, but it must never become the source of stored facts. Persisted memory must stay grounded in direct user statements or direct sensor input.
+- Alternatives considered: Storing assistant-generated summaries as evidence, leaving provenance implicit
+- Consequences: Nodes, edges, sensor bindings, and evidence records carry explicit provenance, and the allowed sources are limited to `user` and `sensor`.
