@@ -43,3 +43,35 @@
 - Rationale: Phase 1 requires every observation cycle to log observation, decision, confidence, feedback, and memory mutation, even when no guess is made.
 - Alternatives considered: Logging only decision and mutation for unknown observations
 - Consequences: The event log captures both the ask-for-label decision and the user's label response before the corresponding memory mutation.
+
+## Phase 2 - 2026-03-28
+
+### Decision: Use linear confidence decay with tolerance of 0.05
+
+- Rationale: 5% of the unit range provides meaningful noise tolerance while keeping distinct locations separable. Linear decay from 1.0 (distance=0) to 0.5 (distance=tolerance) is simple, interpretable, and avoids magic numbers of Gaussian kernels.
+- Alternatives considered: Gaussian kernel, step function, exponential decay, tolerance of 0.01 or 0.10
+- Consequences: Observations within 0.05 of a learned value produce graded confidence. The function can be replaced with a more sophisticated model later without changing the interface.
+
+### Decision: Lower guess threshold from 1.0 to 0.6
+
+- Rationale: With distance-based matching, confidence < 1.0 is normal for noisy observations. A threshold of 0.6 allows confident-enough noisy matches while filtering weak ones. Must be above the floor (0.5 at tolerance boundary) to prevent low-quality guesses.
+- Alternatives considered: 0.5 (too aggressive — boundary matches would guess), 0.8 (too conservative — only very close matches)
+- Consequences: Guesses fire for observations within roughly 80% of tolerance. Values between 0 and 0.6 confidence trigger the new uncertain-guess path.
+
+### Decision: Add an uncertain-guess path for low-confidence matches
+
+- Rationale: When confidence is between 0 and the threshold, the agent has a plausible match but isn't confident enough to commit. Showing the best guess with uncertainty and asking for explicit confirmation prevents silent false positives while remaining helpful.
+- Alternatives considered: Treating all sub-threshold matches as completely unknown, showing ranked candidates
+- Consequences: Users see the agent's reasoning even when it's unsure. Ranked candidates deferred to Phase 3+.
+
+### Decision: Add a near-collision guard when learning new observations
+
+- Rationale: Without a guard, a user could teach 0.250 → kitchen and 0.252 → bathroom, creating nearly-identical observations with contradictory labels. The guard surfaces this as a confirmation prompt.
+- Alternatives considered: Silently merging into the nearest existing record, blocking near-duplicate learning entirely
+- Consequences: Users can still learn close observations if they explicitly confirm, but accidental duplicates are caught.
+
+### Decision: Migrate schema v1 to v2 transparently on load (policy-only)
+
+- Rationale: The only structural difference between v1 and v2 is the confidence_policy (added `tolerance`, changed `kind` to `distance`, lowered `guess_threshold`). No data migration is needed.
+- Alternatives considered: Requiring manual migration, refusing to load v1 files
+- Consequences: Existing v1 runtime files are upgraded automatically on first load. Old installations continue working without manual intervention.

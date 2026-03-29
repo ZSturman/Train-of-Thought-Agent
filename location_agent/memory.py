@@ -6,11 +6,21 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from location_agent.models import LocationRecord, NormalizedObservation, SCHEMA_VERSION, utc_now_iso
+from location_agent.models import (
+    DEFAULT_GUESS_THRESHOLD,
+    DEFAULT_TOLERANCE,
+    LocationRecord,
+    NormalizedObservation,
+    SCHEMA_VERSION,
+    distance_to_confidence,
+    reinforced_confidence,
+    scalar_distance,
+    utc_now_iso,
+)
 
 
 class MemoryStore:
-    """Persistent Phase 1 memory store backed by a single JSON file."""
+    """Persistent memory store backed by a single JSON file."""
 
     def __init__(self, path: Path | str):
         self.path = Path(path)
@@ -26,6 +36,10 @@ class MemoryStore:
         return float(self._data["confidence_policy"]["guess_threshold"])
 
     @property
+    def tolerance(self) -> float:
+        return float(self._data["confidence_policy"]["tolerance"])
+
+    @property
     def data(self) -> dict[str, Any]:
         return self._data
 
@@ -36,7 +50,52 @@ class MemoryStore:
         return LocationRecord.from_dict(record)
 
     def get_confidence(self, observation: NormalizedObservation) -> float:
-        return 1.0 if observation.key in self._data["locations_by_observation"] else 0.0
+        _, confidence = self.find_nearest(observation)
+        return confidence
+
+    def find_nearest(
+        self,
+        observation: NormalizedObservation,
+    ) -> tuple[LocationRecord | None, float]:
+        """Find the nearest stored observation by distance.
+
+        Returns the best matching LocationRecord and its confidence score.
+        Exact key match yields confidence 1.0.  Distance-based matches
+        yield confidence between 0.5 and 1.0 (within tolerance), boosted
+        by accumulated correct confirmations, or 0.0 if beyond tolerance.
+        """
+        locations = self._data["locations_by_observation"]
+
+        # Fast path: exact key match (preserves Phase 1 behaviour).
+        if observation.key in locations:
+            return LocationRecord.from_dict(locations[observation.key]), 1.0
+
+        best_record: LocationRecord | None = None
+        best_confidence: float = 0.0
+
+        tol = self.tolerance
+        for raw_record in locations.values():
+            stored_value = float(raw_record["observation_value"])
+            dist = scalar_distance(observation.value, stored_value)
+            base_conf = distance_to_confidence(dist, tol)
+            conf = reinforced_confidence(base_conf, int(raw_record.get("correct_count", 0)))
+            if conf > best_confidence:
+                best_confidence = conf
+                best_record = LocationRecord.from_dict(raw_record)
+
+        return best_record, best_confidence
+
+    def find_near_collision(
+        self,
+        observation: NormalizedObservation,
+    ) -> LocationRecord | None:
+        """Return an existing record within tolerance, or None."""
+        tol = self.tolerance
+        for raw_record in self._data["locations_by_observation"].values():
+            stored_value = float(raw_record["observation_value"])
+            if scalar_distance(observation.value, stored_value) <= tol:
+                return LocationRecord.from_dict(raw_record)
+        return None
 
     def learn_location(
         self,
@@ -65,8 +124,9 @@ class MemoryStore:
     def record_correct_guess(
         self,
         observation: NormalizedObservation,
+        matched_record: LocationRecord | None = None,
     ) -> tuple[LocationRecord, LocationRecord]:
-        current = self.lookup_or_raise(observation)
+        current = matched_record or self.lookup_or_raise(observation)
         updated = replace(
             current,
             observation_count=current.observation_count + 1,
@@ -74,7 +134,7 @@ class MemoryStore:
             correct_count=current.correct_count + 1,
             last_seen_at=utc_now_iso(),
         )
-        self._data["locations_by_observation"][observation.key] = updated.to_dict()
+        self._data["locations_by_observation"][current.observation_key] = updated.to_dict()
         self._save()
         return current, updated
 
@@ -82,8 +142,9 @@ class MemoryStore:
         self,
         observation: NormalizedObservation,
         new_label: str,
+        matched_record: LocationRecord | None = None,
     ) -> tuple[LocationRecord, LocationRecord]:
-        current = self.lookup_or_raise(observation)
+        current = matched_record or self.lookup_or_raise(observation)
         updated = replace(
             current,
             label=new_label.strip(),
@@ -92,7 +153,7 @@ class MemoryStore:
             incorrect_count=current.incorrect_count + 1,
             last_seen_at=utc_now_iso(),
         )
-        self._data["locations_by_observation"][observation.key] = updated.to_dict()
+        self._data["locations_by_observation"][current.observation_key] = updated.to_dict()
         self._save()
         return current, updated
 
@@ -118,6 +179,16 @@ class MemoryStore:
         payload.setdefault("locations_by_observation", {})
         payload.setdefault("created_at", utc_now_iso())
         payload.setdefault("updated_at", payload["created_at"])
+
+        # Migrate schema v1 → v2 (policy-only, no data restructuring).
+        if payload.get("schema_version", 1) < 2:
+            policy = payload["confidence_policy"]
+            policy["kind"] = "distance"
+            policy["tolerance"] = DEFAULT_TOLERANCE
+            policy["guess_threshold"] = DEFAULT_GUESS_THRESHOLD
+            payload["schema_version"] = SCHEMA_VERSION
+            self._write_payload(payload)
+
         return payload
 
     def _empty_payload(self) -> dict[str, Any]:
@@ -132,8 +203,9 @@ class MemoryStore:
 
     def _default_confidence_policy(self) -> dict[str, Any]:
         return {
-            "kind": "exact_match",
-            "guess_threshold": 1.0,
+            "kind": "distance",
+            "tolerance": DEFAULT_TOLERANCE,
+            "guess_threshold": DEFAULT_GUESS_THRESHOLD,
             "normalization_decimals": 6,
         }
 

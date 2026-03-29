@@ -169,10 +169,145 @@ class SessionControllerTests(unittest.TestCase):
 
         combined = "\n".join(output.lines)
         self.assertIn("Tree-of-Thought Location Agent", combined)
-        self.assertIn("Phase 1", combined)
+        self.assertIn("Phase 2", combined)
         self.assertIn("Session Summary", combined)
         self.assertIn("Observations entered", combined)
         self.assertIn("goodbye", output.lines)
+
+    # -- Phase 2: Noisy matching tests -----------------------------------
+
+    def test_noisy_match_guesses_with_reduced_confidence(self) -> None:
+        """Learn 0.25 as kitchen, then enter 0.253 — agent should guess kitchen."""
+        feeder = InputFeeder(["0.25", "kitchen", "0.253", "yes", "quit"])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        # The noisy observation should have matched "kitchen" with confidence < 1.0.
+        guess_lines = [l for l in output.lines if "kitchen" in l and "confidence" in l]
+        self.assertTrue(len(guess_lines) >= 1)
+        # The agent guessed and user confirmed — correct_count should be 1.
+        reloaded = MemoryStore(self.memory_path)
+        record = reloaded.lookup(NormalizedObservation.parse("0.25"))
+        self.assertIsNotNone(record)
+        self.assertEqual(1, record.correct_count)
+
+    def test_far_observation_triggers_unknown(self) -> None:
+        """Learn 0.25 as kitchen, then enter 0.90 — agent should say unknown."""
+        feeder = InputFeeder(["0.25", "kitchen", "0.90", "lobby", "yes", "quit"])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        # 0.90 is far from 0.25 — the agent shouldn't guess kitchen.
+        self.assertIn("where am i", output.lines)
+        reloaded = MemoryStore(self.memory_path)
+        record_lobby = reloaded.lookup(NormalizedObservation.parse("0.90"))
+        self.assertIsNotNone(record_lobby)
+        self.assertEqual("lobby", record_lobby.label)
+
+    def test_uncertain_guess_rejected_then_new_label(self) -> None:
+        """Uncertain match rejected by user leads to learning a new location."""
+        # Learn 0.25 as kitchen, then enter 0.296 which is within tolerance (dist=0.046 < 0.05)
+        # confidence = 1.0 - 0.5*(0.046/0.05) = 0.54, which is < 0.6 threshold → uncertain
+        feeder = InputFeeder([
+            "0.25", "kitchen",       # learn kitchen
+            "0.296",                  # uncertain match
+            "no",                     # reject uncertain guess
+            "bathroom",              # provide new label
+            "yes",                    # confirm near-collision
+            "quit",
+        ])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        combined = "\n".join(output.lines)
+        self.assertIn("uncertain", combined)
+
+    def test_near_collision_guard_warns_user(self) -> None:
+        """Learning a new observation within tolerance warns about near-collision."""
+        # Learn 0.25 as kitchen, then enter 0.296 (distance 0.046, confidence ≈ 0.54).
+        # 0.54 < 0.6 threshold → uncertain guess path.
+        # User rejects → learns new location → collision guard fires.
+        feeder = InputFeeder([
+            "0.25", "kitchen",       # learn kitchen
+            "0.296",                 # uncertain match to kitchen (conf ≈ 0.54)
+            "no",                    # reject uncertain guess
+            "bathroom",              # provide new label
+            "yes",                   # confirm near-collision
+            "quit",
+        ])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        # Check that the near-collision message appeared.
+        combined = "\n".join(output.lines)
+        self.assertIn("near:", combined)
+
+    def test_near_collision_guard_skip(self) -> None:
+        """User can decline to learn a near-collision observation."""
+        # 0.296 is within tolerance of 0.25 (distance 0.046, conf ≈ 0.54 < 0.6)
+        # → uncertain path → user rejects → learns → collision guard → user declines.
+        feeder = InputFeeder([
+            "0.25", "kitchen",       # learn kitchen
+            "0.296",                 # uncertain match to kitchen
+            "no",                    # reject uncertain guess
+            "bathroom",              # provide new label
+            "no",                    # decline near-collision → skip
+            "quit",
+        ])
+        output = OutputCollector()
+        controller = SessionController(
+            store=MemoryStore(self.memory_path),
+            event_logger=EventLogger(self.event_log_path),
+            input_func=feeder,
+            output_func=output,
+            session_id="test-session",
+            quiet=True,
+        )
+
+        controller.run()
+
+        combined = "\n".join(output.lines)
+        self.assertIn("skipped", combined)
+        # 0.296 should not have been learned.
+        reloaded = MemoryStore(self.memory_path)
+        record = reloaded.lookup(NormalizedObservation.parse("0.296"))
+        self.assertIsNone(record)
 
 
 if __name__ == "__main__":

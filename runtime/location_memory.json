@@ -1,20 +1,33 @@
 {
   "confidence_policy": {
-    "guess_threshold": 1.0,
-    "kind": "exact_match",
-    "normalization_decimals": 6
+    "guess_threshold": 0.6,
+    "kind": "distance",
+    "normalization_decimals": 6,
+    "tolerance": 0.05
   },
   "created_at": "2026-03-26T08:47:07+00:00",
   "locations_by_observation": {
+    "0.100000": {
+      "correct_count": 2,
+      "first_seen_at": "2026-03-29T00:36:57+00:00",
+      "guess_count": 2,
+      "incorrect_count": 0,
+      "label": "One",
+      "last_seen_at": "2026-03-29T00:37:10+00:00",
+      "location_id": "loc-81a9886ab837",
+      "observation_count": 3,
+      "observation_key": "0.100000",
+      "observation_value": 0.1
+    },
     "0.200000": {
-      "correct_count": 0,
+      "correct_count": 1,
       "first_seen_at": "2026-03-28T22:47:31+00:00",
-      "guess_count": 0,
+      "guess_count": 1,
       "incorrect_count": 0,
       "label": "nothing",
-      "last_seen_at": "2026-03-28T22:47:31+00:00",
+      "last_seen_at": "2026-03-29T00:36:46+00:00",
       "location_id": "loc-a8ab3f7c6675",
-      "observation_count": 1,
+      "observation_count": 2,
       "observation_key": "0.200000",
       "observation_value": 0.2
     },
@@ -42,17 +55,53 @@
       "observation_key": "0.333333",
       "observation_value": 0.333333
     },
-    "0.500000": {
+    "0.420000": {
       "correct_count": 1,
-      "first_seen_at": "2026-03-28T22:46:32+00:00",
+      "first_seen_at": "2026-03-29T00:18:30+00:00",
       "guess_count": 1,
       "incorrect_count": 0,
-      "label": "The middle",
-      "last_seen_at": "2026-03-28T22:46:40+00:00",
-      "location_id": "loc-aa0c66e299bb",
+      "label": "garage",
+      "last_seen_at": "2026-03-29T00:18:30+00:00",
+      "location_id": "loc-99a638e77850",
       "observation_count": 2,
+      "observation_key": "0.420000",
+      "observation_value": 0.42
+    },
+    "0.500000": {
+      "correct_count": 7,
+      "first_seen_at": "2026-03-28T22:46:32+00:00",
+      "guess_count": 7,
+      "incorrect_count": 0,
+      "label": "The middle",
+      "last_seen_at": "2026-03-29T00:36:38+00:00",
+      "location_id": "loc-aa0c66e299bb",
+      "observation_count": 8,
       "observation_key": "0.500000",
       "observation_value": 0.5
+    },
+    "0.550000": {
+      "correct_count": 0,
+      "first_seen_at": "2026-03-29T00:31:32+00:00",
+      "guess_count": 0,
+      "incorrect_count": 0,
+      "label": "The middle",
+      "last_seen_at": "2026-03-29T00:31:32+00:00",
+      "location_id": "loc-940a2c05259b",
+      "observation_count": 1,
+      "observation_key": "0.550000",
+      "observation_value": 0.55
+    },
+    "0.600000": {
+      "correct_count": 0,
+      "first_seen_at": "2026-03-29T00:18:32+00:00",
+      "guess_count": 0,
+      "incorrect_count": 0,
+      "label": "basement",
+      "last_seen_at": "2026-03-29T00:18:32+00:00",
+      "location_id": "loc-e0121cb112d1",
+      "observation_count": 1,
+      "observation_key": "0.600000",
+      "observation_value": 0.6
     },
     "0.800000": {
       "correct_count": 0,
@@ -69,12 +118,12 @@
     "0.900000": {
       "correct_count": 1,
       "first_seen_at": "2026-03-28T22:46:57+00:00",
-      "guess_count": 1,
-      "incorrect_count": 0,
-      "label": "The middle",
-      "last_seen_at": "2026-03-28T22:47:17+00:00",
+      "guess_count": 2,
+      "incorrect_count": 1,
+      "label": "foyer",
+      "last_seen_at": "2026-03-29T00:00:19+00:00",
       "location_id": "loc-5cb15694ca25",
-      "observation_count": 2,
+      "observation_count": 3,
       "observation_key": "0.900000",
       "observation_value": 0.9
     },
@@ -103,6 +152,6 @@
       "observation_value": 0.99
     }
   },
-  "schema_version": 1,
-  "updated_at": "2026-03-28T22:47:31+00:00"
+  "schema_version": 2,
+  "updated_at": "2026-03-29T00:37:10+00:00"
 }

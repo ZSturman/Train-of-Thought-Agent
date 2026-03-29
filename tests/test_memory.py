@@ -19,7 +19,7 @@ class MemoryStoreTests(unittest.TestCase):
         store = MemoryStore(self.memory_path)
 
         self.assertEqual({}, store.data["locations_by_observation"])
-        self.assertEqual(1.0, store.guess_threshold)
+        self.assertEqual(0.6, store.guess_threshold)
 
     def test_learn_and_reload_persists_location(self) -> None:
         store = MemoryStore(self.memory_path)

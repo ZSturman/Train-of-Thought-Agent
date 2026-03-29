@@ -3,8 +3,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 NORMALIZATION_DECIMALS = 6
+DEFAULT_TOLERANCE = 0.05
+DEFAULT_GUESS_THRESHOLD = 0.6
+REINFORCEMENT_BOOST_PER_CONFIRM = 0.05
+REINFORCEMENT_BOOST_CAP = 0.4
 
 
 class ObservationError(ValueError):
@@ -13,6 +17,40 @@ class ObservationError(ValueError):
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def scalar_distance(a: float, b: float) -> float:
+    """Absolute distance between two scalar observations."""
+    return abs(a - b)
+
+
+def distance_to_confidence(distance: float, tolerance: float) -> float:
+    """Map distance to confidence using linear decay.
+
+    Returns 1.0 at distance=0, decays linearly to 0.5 at distance=tolerance,
+    and returns 0.0 beyond tolerance.
+    """
+    if distance < 0.0 or tolerance <= 0.0:
+        return 0.0
+    if distance > tolerance:
+        return 0.0
+    return 1.0 - 0.5 * (distance / tolerance)
+
+
+def reinforced_confidence(
+    base_confidence: float,
+    correct_count: int,
+) -> float:
+    """Boost base confidence using accumulated correct confirmations.
+
+    Each confirmation adds REINFORCEMENT_BOOST_PER_CONFIRM (0.05) to the base
+    confidence, up to a maximum total boost of REINFORCEMENT_BOOST_CAP (0.4).
+    The result is capped at 1.0.  Zero or negative base confidence is unchanged.
+    """
+    if base_confidence <= 0.0 or correct_count <= 0:
+        return base_confidence
+    boost = min(correct_count * REINFORCEMENT_BOOST_PER_CONFIRM, REINFORCEMENT_BOOST_CAP)
+    return min(base_confidence + boost, 1.0)
 
 
 @dataclass(frozen=True)
