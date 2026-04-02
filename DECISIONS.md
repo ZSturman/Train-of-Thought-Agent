@@ -171,3 +171,139 @@
 - Rationale: The LLM may help parse or normalize interaction, but it must never become the source of stored facts. Persisted memory must stay grounded in direct user statements or direct sensor input.
 - Alternatives considered: Storing assistant-generated summaries as evidence, leaving provenance implicit
 - Consequences: Nodes, edges, sensor bindings, and evidence records carry explicit provenance, and the allowed sources are limited to `user` and `sensor`.
+
+### Decision: Seed the sensor ladder with repo-local committed image fixtures
+
+- Rationale: The current `sense /path/to/file` flow needs deterministic assets that work offline in tests, docs, and manual smoke runs. A small committed pack keeps iteration fast while preserving a clean path to richer sensing later.
+- Alternatives considered: External URLs only, generated-on-demand fixtures only, waiting until real sensor adapters exist
+- Consequences: `media/catalog.json`, `media/scenarios/`, and `MEDIA_PLAN.md` become part of the continuity layer, and future phases must name their media pack and validation scenario before sensor-heavy work starts.
+
+### Decision: Keep the media progression image-first until multimodal replay is explicitly in scope
+
+- Rationale: Still-image fixtures are the lightest deterministic bridge between scalar-only learning and real sensor ingestion. They let the project validate stepwise sensor learning before taking on synchronization and streaming complexity.
+- Alternatives considered: Introducing audio or position signals immediately, designing early phases around full multimodal bundles
+- Consequences: Phase 4 through Phase 18 remain grounded in committed image-first packs, while multimodal bundles are staged for Phases 19 and 20.
+
+### Decision: Normalize every future sensor module into one `ObservationBundle`
+
+- Rationale: The robot end state requires modular sensor adapters without special-case learning paths per modality. A single transformed input contract keeps all downstream learning and memory modality-neutral.
+- Alternatives considered: Separate per-sensor memory paths, a flat concept-token stream only, one opaque latent vector only
+- Consequences: Future roadmap phases must describe how their sensing work emits `ObservationBundle` fields such as `regions`, `primitive_features`, `pose_estimate`, `motion_estimate`, and `sensor_origin`.
+
+### Decision: Evolve concept storage into a hybrid primitive/composite graph
+
+- Rationale: Concepts like `sky`, `grass`, `park`, and `yard` should be grounded in reusable perceptual parts, not just saved as flat names on a location. Primitive features and composite concepts need first-class storage so multiple labels can be supported from the same evidence.
+- Alternatives considered: Keeping concepts as plain names only, storing only numeric embeddings without inspectable graph structure
+- Consequences: Future `ConceptNode` design is planned to include kinds such as `primitive`, `composite`, `scene`, `entity`, `motion`, and `spatial`, and future `GraphEdge` relations will include part-whole, support, hypothesis, and frame-local relations.
+
+### Decision: Treat exact-file sensor recognition as a temporary preview
+
+- Rationale: The current `sense /path/to/file` behavior is useful for iterative progress, but the target system must match by perceptual content and reason about attended regions, motion, and body-relative spatial context.
+- Alternatives considered: Treating exact-file matching as the lasting recognition model, removing the preview before a replacement exists
+- Consequences: Phase 7 is explicitly documented as a temporary exact-file preview, and later phases replace file identity with region attention, content-based matching, and modality-neutral transformed bundles.
+
+## Continuity Replan - 2026-03-30
+
+### Decision: Preserve the location-first front of the roadmap while changing the final product target
+
+- Rationale: The current repo has real traction in location learning, correction, and inspectable perception scaffolding. That early ladder should stay intact even though the desired end state has shifted.
+- Alternatives considered: Replacing the whole roadmap from Phase 1 onward, appending a second roadmap after Phase 28
+- Consequences: Phases 1 through 5 stay location-first, Phases 6 through 10 remain perception-first, and the new cognitive-engine ladder begins after the perceptual substrate is strong enough to support it.
+
+### Decision: Reframe the long-range end state as a synthetic memory-and-attention engine
+
+- Rationale: The desired product models how traces are written, compressed, reactivated, blocked, surfaced, and rewritten. A robot location monitor is now one application domain, not the full definition of success.
+- Alternatives considered: Keeping robot monitoring as the primary end state, treating thought-like behavior as an optional add-on
+- Consequences: Roadmap, media plan, validation language, and continuity notes now emphasize memory writing, activation, thresholds, replay, resurfacing, reconsolidation, and operator audit.
+
+### Decision: Keep one generic future memory primitive instead of proliferating object classes
+
+- Rationale: The target behavior depends more on strength, context, timing, and connectivity than on whether a trace is called an event, mood, question, or entity.
+- Alternatives considered: Separate persistent classes for event memory, aggregate memory, emotion memory, thought memory, and entity memory
+- Consequences: The future interface direction is documented around `ExperienceFrame`, `MemoryUnit`, `ActivationState`, `AttentionScore`, `WorkspaceState`, and `ReplayWindow`, while the current `LocationModel` and `LabelNode` remain the bootstrap substrate.
+
+### Decision: Defer the first real cognitive schema expansion until Phase 13
+
+- Rationale: The project should not introduce persisted generic memory traces before the perceptual and chunking substrate exists to ground them.
+- Alternatives considered: Adding `MemoryUnit` persistence immediately, delaying the cognitive engine until after all robot phases
+- Consequences: The current Phase 4 runtime schema remains unchanged, and the replan is implemented in the continuity layer first through roadmap, media, state, docs, and tests.
+
+## Phase 5 - 2026-04-01
+
+### Decision: Reject containment cycles with an error
+
+- Rationale: Allowing `A contains B contains A` is semantically incorrect for spatial containment. The `seen` set in BFS prevents infinite loops but the stored graph should be acyclic for containment edges.
+- Alternatives considered: Warning but allowing cycles, keeping them allowed silently
+- Consequences: `link_locations()` raises `ValueError` if the proposed containment edge would create a cycle. Session-layer catches and emits a `cycle rejected:` message.
+
+### Decision: Keep duplicate relation attempts silent (no audit log)
+
+- Rationale: Duplicate relation attempts are harmless no-ops. Logging them would add noise without actionable value at current scale.
+- Alternatives considered: Logging duplicate attempts as explicit no-op audit events
+- Consequences: Re-teaching an existing relation emits a "no change" message to the operator but does not create an event log entry.
+
+### Decision: Add an on-demand `context` CLI command
+
+- Rationale: Active context was only surfaced automatically after nontrivial recognitions. A dedicated `context` command lets the user query context at any time without needing to fake a recognition event.
+- Alternatives considered: Keeping context as automatic-only, surfacing context inside the `inspect` command
+- Consequences: `context` prompts for a location name and shows its full active context (self + enclosing + overlapping). A `query` event is logged with the context result.
+
+## Phase 6 - 2026-04-02
+
+### Decision: Use a closed enum for concept_kind
+
+- Rationale: A closed set of valid kinds (primitive, composite, scene_hypothesis, named) provides immediate validation and prevents drift. New kinds can be added to the frozen set in models.py when needed.
+- Alternatives considered: Open string with no validation, extensible registry
+- Consequences: `_ensure_concept_node()` raises `ValueError` for unknown kinds. CLI rejects invalid kinds with a retry prompt listing valid options.
+
+### Decision: Enforce relation-kind validation at the storage layer
+
+- Rationale: Not all relation kinds make sense between all node types (e.g., `contains` only between locations, `supports` only between concepts). Validating at `_store_graph_edge()` prevents invalid graph topology from ever being persisted.
+- Alternatives considered: Validating only at the CLI layer, deferring validation to later phases
+- Consequences: `validate_relation()` checks each edge's `relation_kind` against `VALID_RELATION_RULES` before storage. Invalid combinations raise `ValueError`.
+
+### Decision: Make concept creation idempotent
+
+- Rationale: The `_ensure_concept_node()` pattern already returns existing nodes by name. Making `create_concept()` idempotent avoids duplicate nodes if the user accidentally creates the same concept twice.
+- Alternatives considered: Raising an error on duplicate creation, offering an update mechanism
+- Consequences: Re-creating an existing concept returns the original node without modifying its kind. The session displays "concept exists" instead of an error.
+
+## Phase 7 - 2026-04-02
+
+### Decision: Document exact-fingerprint sensing as a temporary Phase 7 preview
+
+- Rationale: The current `sense /path/to/file` behavior uses SHA-256 file identity, which is useful for iterative progress but is not the target recognition model. Marking it explicitly as temporary prevents it from being treated as a permanent API.
+- Alternatives considered: Removing the sensor feature until content-based perception is ready, leaving it undocumented
+- Consequences: `SensorObservation` and `SensorBinding` carry docstrings noting Phase 8 replacement. The session banner notes the temporary nature. Regression tests lock the current behavior so Phase 8 can verify a clean transition.
+
+## Phase 8 - 2026-04-02
+
+### Decision: Define ObservationBundle as a frozen dataclass with required field validation
+
+- Rationale: The Perception Architecture Contract specifies 13 fields. Using a frozen dataclass with `__post_init__` validation ensures bundles are immutable and always valid at construction time. Empty required fields (`bundle_id`, `timestamp`, `adapter_id`, `modality`) raise `ValueError` immediately.
+- Alternatives considered: Dict-based bundles with ad-hoc validation, TypedDict, Pydantic model
+- Consequences: Every sensor adapter must produce a valid `ObservationBundle`. Invalid bundles fail loudly at creation rather than silently at consumption.
+
+### Decision: Use an abstract base class for SensorAdapter
+
+- Rationale: A clear `SensorAdapter` ABC with `adapter_id`, `modality`, and `observe()` as abstract members enforces the adapter contract at the type level. Future adapters (audio, IMU, depth) can be validated against the same interface.
+- Alternatives considered: Protocol-based structural typing, free function adapters, duck typing
+- Consequences: `ImageAdapter` extends `SensorAdapter`. Type checkers and `isinstance` can verify adapter compliance. New adapters must implement all three abstract members.
+
+### Decision: Preserve SHA-256 fingerprint flow inside ImageAdapter for backward compatibility
+
+- Rationale: Phase 7 sensor bindings use SHA-256 fingerprints as keys. The `ImageAdapter` wraps the existing `SensorObservation.from_path()` flow and stores the resolved path in `raw_refs` and `sensor_origin`. Recognition still relies on fingerprint lookup for now, but all session code receives the bundle interface.
+- Alternatives considered: Dropping fingerprint-based recognition immediately, adding perceptual hashing in Phase 8
+- Consequences: Existing sensor bindings continue to work. The fingerprint is derivable from `bundle.raw_refs[0]` via `ImageAdapter.sensor_observation_from_bundle()`. Phase 9 introduces content-based features without breaking the current flow.
+
+### Decision: Bump schema to v7 with observation_bundles collection
+
+- Rationale: Persisting bundles alongside sensor bindings supports audit, replay, and later attention scoring. The v6→v7 migration adds an empty `observation_bundles` dict without altering existing data.
+- Alternatives considered: Deferring bundle persistence to a later phase, storing bundles only in event logs
+- Consequences: Every `bind_sensor_bundle()` call stores the bundle as well as the binding. Bundles are retrievable by `bundle_id` for inspection and replay.
+
+### Decision: Keep adapter selection static (ImageAdapter only)
+
+- Rationale: Only one sensor modality (image files) exists. Dynamic adapter registries, plugin discovery, or runtime selection add complexity without current value. A single `self._image_adapter` attribute in `SessionController` is sufficient.
+- Alternatives considered: Adapter registry keyed by modality, auto-detection from file extension, user-selectable adapter
+- Consequences: Adding a second adapter in a later phase requires minimal wiring — create the adapter instance and add a selection branch in the sensor handler.

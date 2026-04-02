@@ -1,0 +1,37 @@
+{
+  "scenario_id": "phase_07_sensor_preview_regression",
+  "phase": 7,
+  "goal": "Verify exact-fingerprint sensor preview: learn, recognize, correct, and multi-bind.",
+  "steps": [
+    {
+      "step_id": "learn_bedroom_from_image",
+      "asset_ids": ["bedroom_jpg"],
+      "action": "sense bedroom.jpg → agent says 'new image' → user labels 'bedroom'",
+      "expected_outcome": "SensorBinding created linking bedroom.jpg fingerprint to 'bedroom' location."
+    },
+    {
+      "step_id": "recognize_bedroom_again",
+      "asset_ids": ["bedroom_jpg"],
+      "action": "sense bedroom.jpg → agent says 'recognized image' → guess: bedroom → user confirms",
+      "expected_outcome": "Binding reinforced; guess confidence 1.00."
+    },
+    {
+      "step_id": "wrong_guess_correction",
+      "asset_ids": ["bedroom_jpg"],
+      "action": "sense bedroom.jpg → agent guesses bedroom → user says no → user labels 'office'",
+      "expected_outcome": "SensorBinding updated to point to 'office' instead of 'bedroom'."
+    },
+    {
+      "step_id": "multiple_images_same_location",
+      "asset_ids": ["bedroom_jpg", "lobby_png"],
+      "action": "sense bedroom.jpg → label 'office'; sense lobby.png → label 'office' → both recognized",
+      "expected_outcome": "Two distinct fingerprints bound to the same 'office' location."
+    },
+    {
+      "step_id": "unknown_image_prompts_user",
+      "asset_ids": ["lobby_png"],
+      "action": "sense lobby.png (never seen) → agent says 'new image' → user labels 'lobby'",
+      "expected_outcome": "New SensorBinding created; 'new image' message confirmed."
+    }
+  ]
+}

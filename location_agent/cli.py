@@ -12,7 +12,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Tree-of-Thought Location Agent — an interactive learning agent "
         "that associates grayscale observations and sensor-path inputs with "
-        "first-class location labels.",
+        "nested, inspectable location context.",
     )
     parser.add_argument(
         "-q",

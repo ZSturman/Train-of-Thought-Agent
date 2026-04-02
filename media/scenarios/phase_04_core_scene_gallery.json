@@ -1,0 +1,47 @@
+{
+  "scenario_id": "phase_04_core_scene_gallery",
+  "phase": 4,
+  "goal": "Register the remaining committed still-image fixtures so later phases can reuse a stable starter corpus.",
+  "steps": [
+    {
+      "step_id": "bedroom_fixture_available",
+      "asset_ids": [
+        "phase04_bedroom_scene"
+      ],
+      "action": "optionally learn the committed bedroom fixture",
+      "expected_outcome": "A deterministic bedroom image is available for nested-context and entity phases."
+    },
+    {
+      "step_id": "living_room_fixture_available",
+      "asset_ids": [
+        "phase04_living_room_scene"
+      ],
+      "action": "optionally learn the committed living room fixture",
+      "expected_outcome": "A deterministic living room image is available for containment and hierarchy phases."
+    },
+    {
+      "step_id": "hallway_fixture_available",
+      "asset_ids": [
+        "phase04_hallway_scene"
+      ],
+      "action": "optionally learn the committed hallway fixture",
+      "expected_outcome": "A deterministic hallway image is available for transition reasoning phases."
+    },
+    {
+      "step_id": "doorway_fixture_available",
+      "asset_ids": [
+        "phase04_doorway_scene"
+      ],
+      "action": "optionally learn the committed doorway fixture",
+      "expected_outcome": "A deterministic doorway image is available for threshold and ambiguity phases."
+    },
+    {
+      "step_id": "lobby_fixture_available",
+      "asset_ids": [
+        "phase04_lobby_scene"
+      ],
+      "action": "optionally learn the committed lobby fixture",
+      "expected_outcome": "A deterministic lobby image is available for relation and building-scale phases."
+    }
+  ]
+}

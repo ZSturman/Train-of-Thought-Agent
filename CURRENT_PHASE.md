@@ -1,9 +1,10 @@
 # Current Phase
 
-- Status: in-progress
-- Phase number: 4
-- Title: First-Class Labels
-- Validation result: pending
+- Status: accepted
+- Phase number: 8
+- Title: Modality-Neutral Observation Bundle
+- Validation result: accepted — 177 tests pass, all success criteria met
+- Next phase: 9 — Region Descriptors & Primitive Feature Extraction
 
 ---
 
@@ -34,52 +35,42 @@ Reset and exit:
 python3 -m location_agent.cli --reset
 ```
 
-### Phase 4 Commands
+### Phase 8 Focus
 
-- `inspect` — show learned location models with canonical label, aliases, label id, provenance-aware stats, and any active location context
-- `rename` — rename an existing canonical label or alias; the old canonical name remains as an alias
-- `alias` — add a new alias to an existing label
-- `sense /path/to/file` — learn or recognize a simulated sensor input from an image, video, or other file path
-- `reset` — clear all learned location models, label nodes, graph edges, concepts, and sensor bindings after confirmation
+Phase 8 defines and adopts one transformed observation interface (`ObservationBundle`) that every
+future sensor module must emit. The existing `sense /path/to/file` command still works, but now
+routes through an `ImageAdapter` that normalizes the raw sensor input into the standard bundle shape
+before it reaches learning or memory. File-identity fingerprints are preserved as `raw_refs` but are
+no longer the primary recognition mechanism at the interface boundary.
+
+### Phase 8 Commands
+
+All Phase 7 commands remain. The `sense` command now routes through the adapter layer:
+
+- `sense /path/to/file` — learn or recognize a location via adapter → bundle → learning
+- `concept` / `relate` / `concepts` — concept graph management (from Phase 6)
+- `context` — show active location context (from Phase 5)
+- `contain` / `overlap` — teach location relations (from Phase 5)
+- `inspect` — show learned models, labels, relations, and stats
+- `rename` / `alias` — label management
+- `reset` — clear all memory after confirmation
 - `quit` — end the session
 
-### Example Session (Verbose Mode)
+### Example Session (Quiet Mode)
 
 ```text
-========================================================
-  Tree-of-Thought Location Agent
-  Phase 4: First-Class Labels
-========================================================
-
-Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: 0.25
-This is a new observation — I haven't seen this value before.
-What location does this represent? Enter a label: kitchen
-Learned! 0.250000 → "kitchen"
-
-Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: 0.29
-I recognize this! My guess: "kitchen" (confidence: 60%)
-Is this correct? (yes/no): yes
-Great — my memory is reinforced.
-
-Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: rename
-Which existing canonical label or alias should I rename? kitchen
-What should the new canonical label be? break room
-Renamed "kitchen" → "break room". The old name remains as an alias.
-
-Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: sense /tmp/room.jpg
-This image input is new — I don't know its location yet.
-What location does this represent? Enter a label: break room
-Linked this image input to the existing location "break room".
-
-Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: alias
-Which existing canonical label or alias should receive a new alias? break room
-What alias should I add? galley
-Added alias "galley" for "break room".
-
-Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: inspect
---- Learned Location Models ---
-  break room           [label-...]  aliases=kitchen, galley  proto=0.270000  spread=0.020000  obs=2  renames=1
--------------------------------
+agent online
+observation[0.0-1.0|quit]: sense /path/to/bedroom.png
+sensor: new image (via image-adapter)
+label: bedroom
+sensor: learned "bedroom" from image
+observation[0.0-1.0|quit]: sense /path/to/bedroom.png
+sensor: recognized image (via image-adapter)
+guess: bedroom (confidence=1.00)
+correct?[1/0]: 1
+active-context: bedroom
+observation[0.0-1.0|quit]: quit
+goodbye
 ```
 
 ### Running Tests
@@ -88,33 +79,25 @@ Enter a grayscale observation (0.0 to 1.0), or 'quit' to exit: inspect
 python3 -B -m unittest discover -s tests -v
 ```
 
-Expected: 101 automated tests pass.
-
 ### What to Check After Running
 
 - `runtime/location_memory.json`
-  - `schema_version: 5`
-  - `location_models` keyed by `location_id`
-  - `label_nodes` keyed by `label_id`
-  - `graph_edges`, `concept_nodes`, `sensor_bindings`, and `evidence_records` present for pre-entity location scaffolding
-- `runtime/agent_events.jsonl`
-  - sensor observations log `observation_kind: "sensor"` with file fingerprint metadata
-  - rename and alias mutations log as `label_renamed` and `label_alias_added`
-- Existing v1, v2, v3, and v4 memory files auto-migrate to v5
-- Reusing an existing label for a new compatible observation reinforces the same location instead of forcing a rename
-- Once one location is confirmed at both ends of a wider scalar span, values inside that span are guessed as the same location by default unless conflicting evidence appears
-- Renaming a label updates the canonical name while preserving the old name as an alias
-- Aliases resolve after restart
-- `sense /path/to/file` either recognizes a previously learned location or asks the user what location the file represents
-- `inspect` shows canonical label, aliases, label id, prototype, spread, observation count, and rename count
+  - `schema_version: 7`
+  - `sensor_bindings` contains fingerprint-keyed bindings with `provenance_source: "sensor"`
+  - Each binding links a SHA256 fingerprint to exactly one `location_id`
+- The `sense` command routes through `ImageAdapter` → `ObservationBundle` → learning
+- `ObservationBundle` fields include: `bundle_id`, `timestamp`, `adapter_id`, `modality`,
+  `reference_frame`, `pose_estimate`, `motion_estimate`, `sensor_origin`, `regions`,
+  `primitive_features`, `concept_candidates`, `raw_refs`, `provenance`
+- Two different adapters produce the same bundle shape
+- Bundle provenance and raw references survive normalization
+- Existing sensor bindings are preserved through schema migration
 
 ### What Success Looks Like
 
-1. A new observation creates both a location model and a label node.
-2. Reusing the same location label for nearby or repeated observations reinforces the existing learned location instead of producing a naming error.
-3. If the same location is confirmed across a wider scalar range, later values inside that confirmed span are guessed as the same location by default.
-4. `rename` changes the canonical label without losing the old name.
-5. `alias` adds another active name for the same label node.
-6. Future guesses use the current canonical label.
-7. `sense /path/to/file` can learn a location from direct sensor input and recognize it again later.
-8. v4 memory upgrades to v5 without losing observation stats.
+1. The exact-file preview remains available and clearly documented as temporary.
+2. Sensor bindings rely on direct file fingerprints only in this phase.
+3. Unknown inputs trigger a user question instead of invention.
+4. Recognized inputs reuse prior learning.
+5. Regression tests cover multi-image learning, recognition, correction, and unknown prompting.
+6. Documentation markers clarify that Phase 8 replaces file identity with content-based perception.

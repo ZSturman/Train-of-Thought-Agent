@@ -1,0 +1,44 @@
+{
+  "scenario_id": "phase_08_observation_bundle_contract",
+  "phase": 8,
+  "goal": "Verify ObservationBundle schema, adapter normalization, and bundle-routed sensor flow.",
+  "steps": [
+    {
+      "step_id": "image_adapter_produces_bundle",
+      "asset_ids": ["phase04_bedroom_scene"],
+      "action": "ImageAdapter.observe(bedroom scene) produces ObservationBundle with all required fields",
+      "expected_outcome": "Bundle has bundle_id, timestamp, adapter_id='image-adapter-v1', modality='image', raw_refs with resolved path, provenance='sensor'."
+    },
+    {
+      "step_id": "bundle_field_validation",
+      "asset_ids": ["phase04_bedroom_scene"],
+      "action": "Attempt to create bundle with empty bundle_id, timestamp, adapter_id, or modality using bedroom scene as reference",
+      "expected_outcome": "ValueError raised for each empty required field."
+    },
+    {
+      "step_id": "adapter_contract_enforced",
+      "asset_ids": ["phase04_bedroom_scene"],
+      "action": "Create a mock AudioAdapter implementing SensorAdapter and verify it produces same bundle shape keys as ImageAdapter against bedroom scene",
+      "expected_outcome": "Both adapter bundles have identical dict key sets from to_dict()."
+    },
+    {
+      "step_id": "sense_routes_through_adapter",
+      "asset_ids": ["phase04_bedroom_scene"],
+      "action": "sense bedroom scene via CLI → adapter creates bundle → bundle stored → sensor binding created",
+      "expected_outcome": "observation_bundles in memory contains the bundle; sensor_bindings link fingerprint to location."
+    },
+    {
+      "step_id": "bundle_persists_across_reload",
+      "asset_ids": ["phase04_bedroom_scene"],
+      "action": "Store a bundle for bedroom scene, reload MemoryStore, retrieve by bundle_id",
+      "expected_outcome": "Bundle survives JSON persistence and round-trips correctly."
+    },
+    {
+      "step_id": "schema_v6_to_v7_migration",
+      "asset_ids": ["phase04_bedroom_scene"],
+      "action": "Load a v6 memory file and verify it gains observation_bundles and schema_version=7",
+      "expected_outcome": "Migration adds observation_bundles={} and bumps version to 7."
+    }
+  ],
+  "notes": "Phase 8 establishes the modality-neutral ObservationBundle as the single input shape for all sensor adapters. The ImageAdapter wraps Phase 7's SHA-256 fingerprint flow into this shape. Phase 9 will populate bundle regions and primitive features."
+}

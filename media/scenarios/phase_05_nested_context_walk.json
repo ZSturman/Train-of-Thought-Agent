@@ -1,0 +1,50 @@
+{
+  "scenario_id": "phase_05_nested_context_walk",
+  "phase": 5,
+  "goal": "Validate that enclosing context stays active while nested room labels change across committed still-image fixtures.",
+  "steps": [
+    {
+      "step_id": "learn_house_anchor",
+      "asset_ids": [
+        "phase05_house_scene"
+      ],
+      "action": "sense the house fixture path and label it `house`",
+      "expected_outcome": "The agent learns an enclosing house location that can remain active while child rooms change."
+    },
+    {
+      "step_id": "learn_bedroom_child",
+      "asset_ids": [
+        "phase04_bedroom_scene"
+      ],
+      "action": "sense the bedroom fixture path and label it `bedroom`",
+      "expected_outcome": "The agent learns a bedroom location that can later inherit the enclosing house context."
+    },
+    {
+      "step_id": "learn_living_room_child",
+      "asset_ids": [
+        "phase04_living_room_scene"
+      ],
+      "action": "sense the living room fixture path and label it `living room`",
+      "expected_outcome": "The agent learns a living-room location that can share the same enclosing house context."
+    },
+    {
+      "step_id": "teach_house_containment_edges",
+      "asset_ids": [
+        "phase05_house_scene",
+        "phase04_bedroom_scene",
+        "phase04_living_room_scene"
+      ],
+      "action": "run `contain` for `house -> bedroom` and `house -> living room`",
+      "expected_outcome": "Containment relations are stored explicitly and can be inspected later."
+    },
+    {
+      "step_id": "verify_context_survives_child_transition",
+      "asset_ids": [
+        "phase04_bedroom_scene",
+        "phase04_living_room_scene"
+      ],
+      "action": "resolve bedroom, then resolve living room, and inspect the active context",
+      "expected_outcome": "The active child location changes while `house` remains active as enclosing context."
+    }
+  ]
+}

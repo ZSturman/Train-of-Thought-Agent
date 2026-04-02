@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from location_agent.memory import LabelConflictError, MemoryStore
-from location_agent.models import NormalizedObservation, SCHEMA_VERSION, SensorObservation
+from location_agent.memory import LabelConflictError, LabelLookupError, MemoryStore
+from location_agent.models import NormalizedObservation, SCHEMA_VERSION, SensorObservation, VALID_CONCEPT_KINDS
 
 
 class MemoryStoreTests(unittest.TestCase):
@@ -383,6 +383,9 @@ class InspectModelsTests(unittest.TestCase):
         self.assertIn("aliases", model)
         self.assertIn("rename_history", model)
         self.assertIn("active_context", model)
+        self.assertIn("contains", model)
+        self.assertIn("contained_by", model)
+        self.assertIn("overlaps", model)
         self.assertIn("concepts", model)
         self.assertIn("provenance_source", model)
         self.assertEqual(["galley"], model["aliases"])
@@ -400,11 +403,79 @@ class LocationGraphTests(unittest.TestCase):
         store.learn_location(NormalizedObservation.parse("0.20"), "bedroom")
         store.learn_location(NormalizedObservation.parse("0.30"), "living room")
 
-        store.link_locations("house", "bedroom")
-        store.link_locations("house", "living room")
+        _, created_bedroom = store.link_locations("house", "bedroom")
+        _, created_living_room = store.link_locations("house", "living room")
 
+        self.assertTrue(created_bedroom)
+        self.assertTrue(created_living_room)
         self.assertEqual(["bedroom", "house"], store.active_context_names("bedroom"))
         self.assertEqual(["living room", "house"], store.active_context_names("living room"))
+
+    def test_location_relations_include_contains_and_contained_by(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "house")
+        store.learn_location(NormalizedObservation.parse("0.20"), "bedroom")
+
+        store.link_locations("house", "bedroom")
+
+        house_snapshot = store.snapshot_location("house")
+        bedroom_snapshot = store.snapshot_location("bedroom")
+        self.assertEqual(["bedroom"], house_snapshot["contains"])
+        self.assertEqual([], house_snapshot["contained_by"])
+        self.assertEqual([], house_snapshot["overlaps"])
+        self.assertEqual([], bedroom_snapshot["contains"])
+        self.assertEqual(["house"], bedroom_snapshot["contained_by"])
+
+    def test_overlap_relations_are_canonicalized_and_deduplicated(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "hallway")
+        store.learn_location(NormalizedObservation.parse("0.20"), "doorway")
+
+        first_edge, first_created = store.link_locations("hallway", "doorway", relation_kind="overlaps")
+        second_edge, second_created = store.link_locations("doorway", "hallway", relation_kind="overlaps")
+
+        self.assertTrue(first_created)
+        self.assertFalse(second_created)
+        self.assertIsNotNone(first_edge)
+        self.assertIsNotNone(second_edge)
+        self.assertEqual(first_edge.edge_id, second_edge.edge_id)
+        hallway_snapshot = store.snapshot_location("hallway")
+        doorway_snapshot = store.snapshot_location("doorway")
+        self.assertEqual(["doorway"], hallway_snapshot["overlaps"])
+        self.assertEqual(["hallway"], doorway_snapshot["overlaps"])
+
+    def test_self_relations_are_noops(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "house")
+
+        edge, created = store.link_locations("house", "house")
+
+        self.assertIsNone(edge)
+        self.assertFalse(created)
+        self.assertEqual({}, store.data["graph_edges"])
+
+    def test_alias_lookup_works_for_relations(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "house")
+        store.learn_location(NormalizedObservation.parse("0.20"), "bedroom")
+        store.add_alias("house", "home")
+
+        _, created = store.link_locations("home", "bedroom")
+
+        self.assertTrue(created)
+        self.assertEqual(["bedroom", "house"], store.active_context_names("bedroom"))
+
+    def test_active_context_traverses_parent_and_overlap_edges(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "house")
+        store.learn_location(NormalizedObservation.parse("0.20"), "bedroom")
+        store.learn_location(NormalizedObservation.parse("0.30"), "hallway")
+
+        store.link_locations("house", "bedroom")
+        store.link_locations("house", "hallway")
+        store.link_locations("bedroom", "hallway", relation_kind="overlaps")
+
+        self.assertEqual(["bedroom", "house", "hallway"], store.active_context_names("bedroom"))
 
     def test_attach_concept_creates_node_and_link(self) -> None:
         store = MemoryStore(self.memory_path)
@@ -416,6 +487,41 @@ class LocationGraphTests(unittest.TestCase):
         self.assertEqual("morning", concept.concept_name)
         self.assertEqual("context_label", edge.relation_kind)
         self.assertIn("morning", snapshot["concepts"])
+
+    def test_containment_cycle_is_rejected(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "house")
+        store.learn_location(NormalizedObservation.parse("0.20"), "bedroom")
+
+        store.link_locations("house", "bedroom")
+
+        with self.assertRaises(ValueError) as ctx:
+            store.link_locations("bedroom", "house")
+        self.assertIn("cycle", str(ctx.exception))
+
+    def test_transitive_containment_cycle_is_rejected(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "A")
+        store.learn_location(NormalizedObservation.parse("0.20"), "B")
+        store.learn_location(NormalizedObservation.parse("0.30"), "C")
+
+        store.link_locations("A", "B")
+        store.link_locations("B", "C")
+
+        with self.assertRaises(ValueError) as ctx:
+            store.link_locations("C", "A")
+        self.assertIn("cycle", str(ctx.exception))
+
+    def test_non_cyclic_containment_is_allowed(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.learn_location(NormalizedObservation.parse("0.10"), "building")
+        store.learn_location(NormalizedObservation.parse("0.20"), "floor")
+        store.learn_location(NormalizedObservation.parse("0.30"), "room")
+
+        store.link_locations("building", "floor")
+        store.link_locations("floor", "room")
+
+        self.assertEqual(["room", "floor", "building"], store.active_context_names("room"))
 
 
 class SensorBindingTests(unittest.TestCase):
@@ -456,6 +562,48 @@ class SensorBindingTests(unittest.TestCase):
 
         self.assertTrue(sources <= {"user", "sensor"})
         self.assertNotIn("llm", sources)
+
+    def test_multiple_sensor_bindings_persist_independently(self) -> None:
+        img_a = Path(self.temporary_directory.name) / "a.jpg"
+        img_b = Path(self.temporary_directory.name) / "b.png"
+        img_c = Path(self.temporary_directory.name) / "c.jpg"
+        img_a.write_bytes(b"alpha-bytes")
+        img_b.write_bytes(b"bravo-bytes")
+        img_c.write_bytes(b"charlie-bytes")
+
+        store = MemoryStore(self.memory_path)
+        store.bind_sensor_observation(SensorObservation.from_path(str(img_a)), "kitchen")
+        store.bind_sensor_observation(SensorObservation.from_path(str(img_b)), "bedroom")
+        store.bind_sensor_observation(SensorObservation.from_path(str(img_c)), "lobby")
+
+        reloaded = MemoryStore(self.memory_path)
+        for img, expected_label in [(img_a, "kitchen"), (img_b, "bedroom"), (img_c, "lobby")]:
+            result = reloaded.lookup_sensor_binding(SensorObservation.from_path(str(img)).fingerprint)
+            self.assertIsNotNone(result, f"{expected_label} binding missing after reload")
+            _, _, label = result
+            self.assertEqual(expected_label, label.canonical_name)
+
+    def test_sensor_binding_update_to_different_location(self) -> None:
+        store = MemoryStore(self.memory_path)
+        obs = SensorObservation.from_path(str(self.sensor_path))
+        store.bind_sensor_observation(obs, "bedroom")
+        store.bind_sensor_observation(obs, "office")
+
+        reloaded = MemoryStore(self.memory_path)
+        result = reloaded.lookup_sensor_binding(obs.fingerprint)
+        self.assertIsNotNone(result)
+        _, model, label = result
+        self.assertEqual("office", label.canonical_name)
+
+    def test_sensor_binding_provenance_is_sensor(self) -> None:
+        store = MemoryStore(self.memory_path)
+        obs = SensorObservation.from_path(str(self.sensor_path))
+        store.bind_sensor_observation(obs, "bedroom")
+
+        bindings = store.data["sensor_bindings"]
+        self.assertEqual(1, len(bindings))
+        binding = next(iter(bindings.values()))
+        self.assertEqual("sensor", binding["provenance_source"])
 
 
 class ResetMemoryTests(unittest.TestCase):
@@ -499,6 +647,133 @@ class ResetMemoryTests(unittest.TestCase):
         store.reset_memory()
         self.assertEqual(SCHEMA_VERSION, store.data["schema_version"])
         self.assertIn("confidence_policy", store.data)
+
+
+class ConceptNodeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.memory_path = Path(self.temporary_directory.name) / "location_memory.json"
+
+    def test_create_concept_stores_and_retrieves(self) -> None:
+        store = MemoryStore(self.memory_path)
+        node = store.create_concept("warmth", concept_kind="primitive")
+        self.assertEqual("warmth", node.concept_name)
+        self.assertEqual("primitive", node.concept_kind)
+        looked_up = store.lookup_concept_by_name("warmth")
+        self.assertIsNotNone(looked_up)
+        self.assertEqual(node.concept_id, looked_up.concept_id)
+
+    def test_create_concept_is_idempotent(self) -> None:
+        store = MemoryStore(self.memory_path)
+        first = store.create_concept("warmth", concept_kind="primitive")
+        second = store.create_concept("warmth", concept_kind="composite")
+        self.assertEqual(first.concept_id, second.concept_id)
+        self.assertEqual("primitive", second.concept_kind)
+
+    def test_create_concept_invalid_kind_raises(self) -> None:
+        store = MemoryStore(self.memory_path)
+        with self.assertRaises(ValueError):
+            store.create_concept("warmth", concept_kind="bogus")
+
+    def test_alias_concept_adds_lookup(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        updated = store.alias_concept("warmth", "heat")
+        self.assertIn("heat", updated.aliases)
+        looked_up = store.lookup_concept_by_name("heat")
+        self.assertIsNotNone(looked_up)
+        self.assertEqual(updated.concept_id, looked_up.concept_id)
+
+    def test_alias_concept_not_found_raises(self) -> None:
+        store = MemoryStore(self.memory_path)
+        with self.assertRaises(LabelLookupError):
+            store.alias_concept("nonexistent", "alias")
+
+    def test_link_concepts_creates_edge(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        store.create_concept("comfort", concept_kind="composite")
+        edge, created = store.link_concepts("warmth", "comfort", relation_kind="supports")
+        self.assertTrue(created)
+        self.assertEqual("supports", edge.relation_kind)
+        self.assertEqual("concept", edge.source_node_type)
+        self.assertEqual("concept", edge.target_node_type)
+
+    def test_link_concepts_deduplicates(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        store.create_concept("comfort", concept_kind="composite")
+        first_edge, first_created = store.link_concepts("warmth", "comfort", relation_kind="supports")
+        second_edge, second_created = store.link_concepts("warmth", "comfort", relation_kind="supports")
+        self.assertTrue(first_created)
+        self.assertFalse(second_created)
+        self.assertEqual(first_edge.edge_id, second_edge.edge_id)
+
+    def test_link_concepts_self_link_raises(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        with self.assertRaises(ValueError):
+            store.link_concepts("warmth", "warmth", relation_kind="supports")
+
+    def test_link_concepts_invalid_relation_raises(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        store.create_concept("comfort", concept_kind="composite")
+        with self.assertRaises(ValueError):
+            store.link_concepts("warmth", "comfort", relation_kind="contains")
+
+    def test_link_concepts_unknown_concept_raises(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        with self.assertRaises(LabelLookupError):
+            store.link_concepts("warmth", "nonexistent", relation_kind="supports")
+
+    def test_concept_relations_returns_bidirectional(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        store.create_concept("comfort", concept_kind="composite")
+        store.link_concepts("warmth", "comfort", relation_kind="supports")
+        warmth_rels = store.concept_relations("warmth")
+        comfort_rels = store.concept_relations("comfort")
+        self.assertIn("comfort", warmth_rels["supports"])
+        self.assertIn("warmth", comfort_rels["supported_by"])
+
+    def test_inspect_concepts_returns_sorted_list(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("zebra", concept_kind="named")
+        store.create_concept("apple", concept_kind="named")
+        result = store.inspect_concepts()
+        self.assertEqual(2, len(result))
+        self.assertEqual("apple", result[0]["concept_name"])
+        self.assertEqual("zebra", result[1]["concept_name"])
+
+    def test_inspect_concepts_includes_relations(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        store.create_concept("comfort", concept_kind="composite")
+        store.link_concepts("warmth", "comfort", relation_kind="supports")
+        result = store.inspect_concepts()
+        warmth = next(c for c in result if c["concept_name"] == "warmth")
+        self.assertEqual(["comfort"], warmth["supports"])
+
+    def test_all_valid_concept_kinds_accepted(self) -> None:
+        store = MemoryStore(self.memory_path)
+        for kind in sorted(VALID_CONCEPT_KINDS):
+            node = store.create_concept(f"concept_{kind}", concept_kind=kind)
+            self.assertEqual(kind, node.concept_kind)
+
+    def test_concept_persists_across_reload(self) -> None:
+        store = MemoryStore(self.memory_path)
+        store.create_concept("warmth", concept_kind="primitive")
+        store.create_concept("comfort", concept_kind="composite")
+        store.link_concepts("warmth", "comfort", relation_kind="supports")
+        reloaded = MemoryStore(self.memory_path)
+        node = reloaded.lookup_concept_by_name("warmth")
+        self.assertIsNotNone(node)
+        self.assertEqual("primitive", node.concept_kind)
+        rels = reloaded.concept_relations("warmth")
+        self.assertIn("comfort", rels["supports"])
 
 
 if __name__ == "__main__":

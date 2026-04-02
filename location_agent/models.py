@@ -1,18 +1,44 @@
 from __future__ import annotations
 
+import abc
 import hashlib
 import math
+import uuid
 from pathlib import Path
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 NORMALIZATION_DECIMALS = 6
 DEFAULT_TOLERANCE = 0.05
 DEFAULT_GUESS_THRESHOLD = 0.6
 REINFORCEMENT_BOOST_PER_CONFIRM = 0.05
 REINFORCEMENT_BOOST_CAP = 0.4
 DEFAULT_OUTLIER_FACTOR = 3.0
+
+VALID_CONCEPT_KINDS = frozenset({"primitive", "composite", "scene_hypothesis", "named"})
+
+VALID_RELATION_RULES: dict[str, frozenset[tuple[str, str]]] = {
+    "contains": frozenset({("location", "location")}),
+    "overlaps": frozenset({("location", "location")}),
+    "context_label": frozenset({("location", "concept")}),
+    "supports": frozenset({("concept", "concept")}),
+    "composes": frozenset({("concept", "concept")}),
+    "supports_hypothesis": frozenset({("concept", "concept")}),
+}
+
+
+def validate_relation(edge_or_kind: str, source_type: str, target_type: str) -> None:
+    """Raise ``ValueError`` if the relation kind is unknown or the node type pair is invalid."""
+    allowed = VALID_RELATION_RULES.get(edge_or_kind)
+    if allowed is None:
+        raise ValueError(f"unknown relation kind: {edge_or_kind!r}")
+    if (source_type, target_type) not in allowed:
+        raise ValueError(
+            f"relation {edge_or_kind!r} does not allow "
+            f"({source_type!r}, {target_type!r}); "
+            f"allowed: {sorted(allowed)}"
+        )
 ALLOWED_PROVENANCE_SOURCES = frozenset({"user", "sensor"})
 
 
@@ -130,6 +156,13 @@ class NormalizedObservation:
 
 @dataclass(frozen=True)
 class SensorObservation:
+    """Phase 7 temporary sensor mechanism.
+
+    Uses SHA-256 file fingerprint for exact-file identity.
+    Phase 8 replaces this with content-based ObservationBundle
+    normalization (perceptual hashing, EXIF, etc.).
+    """
+
     raw_path: str
     resolved_path: str
     fingerprint: str
@@ -161,6 +194,179 @@ class SensorObservation:
             media_kind=infer_media_kind(path),
             file_size=stat.st_size,
         )
+
+
+# -- Phase 8: Observation Bundle and Adapter Contract -------------------
+
+
+@dataclass(frozen=True)
+class RegionDescriptor:
+    """A spatial region within an observation with optional geometry and salience."""
+
+    region_id: str
+    label: str | None = None
+    geometry: dict[str, float] | None = None
+    salience: float = 0.0
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "region_id": self.region_id,
+            "label": self.label,
+            "geometry": self.geometry,
+            "salience": self.salience,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "RegionDescriptor":
+        return cls(
+            region_id=str(payload["region_id"]),
+            label=None if payload.get("label") is None else str(payload["label"]),
+            geometry=payload.get("geometry"),  # type: ignore[arg-type]
+            salience=float(payload.get("salience", 0.0)),
+        )
+
+
+@dataclass(frozen=True)
+class ObservationBundle:
+    """Modality-neutral transformed observation — the single input shape for learning and memory.
+
+    Every sensor adapter must emit this bundle type. Fields left as ``None`` or empty
+    indicate that the adapter does not yet populate that slot; downstream consumers
+    treat absent fields as unavailable rather than as errors.
+    """
+
+    bundle_id: str
+    timestamp: str
+    adapter_id: str
+    modality: str
+    reference_frame: str | None = None
+    pose_estimate: dict[str, float] | None = None
+    motion_estimate: dict[str, float] | None = None
+    sensor_origin: str | None = None
+    regions: tuple[RegionDescriptor, ...] = ()
+    primitive_features: tuple[str, ...] = ()
+    concept_candidates: tuple[str, ...] = ()
+    raw_refs: tuple[str, ...] = ()
+    provenance: str = "sensor"
+
+    def __post_init__(self) -> None:
+        if not self.bundle_id:
+            raise ValueError("bundle_id cannot be empty")
+        if not self.timestamp:
+            raise ValueError("timestamp cannot be empty")
+        if not self.adapter_id:
+            raise ValueError("adapter_id cannot be empty")
+        if not self.modality:
+            raise ValueError("modality cannot be empty")
+        validate_provenance_source(self.provenance)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "bundle_id": self.bundle_id,
+            "timestamp": self.timestamp,
+            "adapter_id": self.adapter_id,
+            "modality": self.modality,
+            "reference_frame": self.reference_frame,
+            "pose_estimate": self.pose_estimate,
+            "motion_estimate": self.motion_estimate,
+            "sensor_origin": self.sensor_origin,
+            "regions": [r.to_dict() for r in self.regions],
+            "primitive_features": list(self.primitive_features),
+            "concept_candidates": list(self.concept_candidates),
+            "raw_refs": list(self.raw_refs),
+            "provenance": self.provenance,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "ObservationBundle":
+        raw_regions = payload.get("regions", [])
+        return cls(
+            bundle_id=str(payload["bundle_id"]),
+            timestamp=str(payload["timestamp"]),
+            adapter_id=str(payload["adapter_id"]),
+            modality=str(payload["modality"]),
+            reference_frame=None if payload.get("reference_frame") is None else str(payload["reference_frame"]),
+            pose_estimate=payload.get("pose_estimate"),  # type: ignore[arg-type]
+            motion_estimate=payload.get("motion_estimate"),  # type: ignore[arg-type]
+            sensor_origin=None if payload.get("sensor_origin") is None else str(payload["sensor_origin"]),
+            regions=tuple(RegionDescriptor.from_dict(r) for r in raw_regions),  # type: ignore[union-attr]
+            primitive_features=tuple(str(f) for f in payload.get("primitive_features", [])),  # type: ignore[union-attr]
+            concept_candidates=tuple(str(c) for c in payload.get("concept_candidates", [])),  # type: ignore[union-attr]
+            raw_refs=tuple(str(r) for r in payload.get("raw_refs", [])),  # type: ignore[union-attr]
+            provenance=str(payload.get("provenance", "sensor")),
+        )
+
+
+class SensorAdapter(abc.ABC):
+    """Abstract base for sensor adapters that normalize raw input into ObservationBundle."""
+
+    @property
+    @abc.abstractmethod
+    def adapter_id(self) -> str:
+        """Unique identifier for this adapter type."""
+
+    @property
+    @abc.abstractmethod
+    def modality(self) -> str:
+        """The modality this adapter handles (e.g. 'image', 'audio')."""
+
+    @abc.abstractmethod
+    def observe(self, raw_input: str) -> ObservationBundle:
+        """Transform raw input (e.g. a file path) into an ObservationBundle.
+
+        Raises ``SensorObservationError`` on invalid input.
+        """
+
+
+class ImageAdapter(SensorAdapter):
+    """Wraps the Phase 7 ``SensorObservation`` fingerprint flow into ObservationBundle shape.
+
+    The SHA-256 fingerprint is preserved as a ``raw_ref`` for backward compatibility
+    with existing sensor bindings. Recognition still uses the fingerprint in this phase,
+    but all downstream code receives the normalized bundle interface.
+    """
+
+    @property
+    def adapter_id(self) -> str:
+        return "image-adapter-v1"
+
+    @property
+    def modality(self) -> str:
+        return "image"
+
+    def observe(self, raw_input: str) -> ObservationBundle:
+        sensor_obs = SensorObservation.from_path(raw_input)
+        return ObservationBundle(
+            bundle_id=f"bundle-{uuid.uuid4().hex[:12]}",
+            timestamp=utc_now_iso(),
+            adapter_id=self.adapter_id,
+            modality=self.modality,
+            raw_refs=(sensor_obs.resolved_path,),
+            provenance="sensor",
+            sensor_origin=sensor_obs.resolved_path,
+        )
+
+    def fingerprint_from_bundle(self, bundle: ObservationBundle) -> str | None:
+        """Extract the SHA-256 fingerprint from bundle raw_refs for backward compatibility."""
+        if not bundle.raw_refs:
+            return None
+        path = Path(bundle.raw_refs[0])
+        if not path.exists() or not path.is_file():
+            return None
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(65536), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def sensor_observation_from_bundle(self, bundle: ObservationBundle) -> SensorObservation | None:
+        """Reconstruct a SensorObservation from bundle for legacy binding lookup."""
+        if not bundle.raw_refs:
+            return None
+        try:
+            return SensorObservation.from_path(bundle.raw_refs[0])
+        except SensorObservationError:
+            return None
 
 
 # -- Phase 2 legacy (used only for migration) ---------------------------
@@ -455,6 +661,7 @@ class LocationModel:
 class ConceptNode:
     concept_id: str
     concept_name: str
+    concept_kind: str
     aliases: tuple[str, ...]
     created_at: str
     updated_at: str
@@ -463,9 +670,13 @@ class ConceptNode:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> "ConceptNode":
+        kind = str(payload.get("concept_kind", "named"))
+        if kind not in VALID_CONCEPT_KINDS:
+            raise ValueError(f"invalid concept_kind: {kind!r}")
         return cls(
             concept_id=str(payload["concept_id"]),
             concept_name=str(payload["concept_name"]),
+            concept_kind=kind,
             aliases=tuple(str(alias) for alias in payload.get("aliases", [])),
             created_at=str(payload["created_at"]),
             updated_at=str(payload["updated_at"]),
@@ -479,6 +690,7 @@ class ConceptNode:
         return {
             "concept_id": self.concept_id,
             "concept_name": self.concept_name,
+            "concept_kind": self.concept_kind,
             "aliases": list(self.aliases),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -537,6 +749,13 @@ class GraphEdge:
 
 @dataclass(frozen=True)
 class SensorBinding:
+    """Phase 7 temporary binding: file fingerprint -> location.
+
+    Links an exact SHA-256 fingerprint to a location_id.
+    Phase 8 replaces this with bundle-based perception where
+    recognition is content-aware rather than path/hash dependent.
+    """
+
     sensor_id: str
     fingerprint: str
     media_kind: str

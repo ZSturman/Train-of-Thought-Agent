@@ -4,20 +4,24 @@ import uuid
 from typing import Callable
 
 from location_agent.logging import EventLogger
-from location_agent.memory import LabelConflictError, MemoryStore
+from location_agent.memory import LabelConflictError, LabelLookupError, MemoryStore
 from location_agent.models import (
+    ImageAdapter,
     NormalizedObservation,
+    ObservationBundle,
     ObservationError,
     SensorObservation,
     SensorObservationError,
+    VALID_CONCEPT_KINDS,
+    VALID_RELATION_RULES,
     normalize_label_name,
 )
 
 InputFunc = Callable[[str], str]
 OutputFunc = Callable[[str], None]
 
-PHASE_NUMBER = 4
-PHASE_TITLE = "First-Class Labels"
+PHASE_NUMBER = 8
+PHASE_TITLE = "Modality-Neutral Observation Bundle"
 
 _WELCOME_BANNER = f"""\
 ========================================================
@@ -26,8 +30,8 @@ _WELCOME_BANNER = f"""\
 ========================================================
 
 This agent learns location models from grayscale observations
-and now stores labels as first-class nodes with aliases,
-rename history, and reusable location identity.
+and now keeps nested or overlapping location context active
+while labels, aliases, and sensor bindings remain inspectable.
 
 HOW IT WORKS
   1. You enter a grayscale value (a decimal from 0.0 to 1.0).
@@ -35,20 +39,32 @@ HOW IT WORKS
      and asks you to confirm.
   3. Reusing an existing location label reinforces that same learned
      location instead of forcing a different name.
-  4. When one location has confirmed observations across a wider span,
-     values inside that span default to the same location unless later
-     evidence suggests a split.
-  5. If the label needs refinement later, you can rename it while
+  4. Use 'contain' to teach enclosing context such as house -> bedroom,
+     and 'overlap' when two locations can co-occur.
+  5. When a location is recognized, the agent can surface more than one
+     active context at once, such as bedroom plus house.
+  6. Use 'concept' to create typed concept nodes, and 'relate' to link
+     concepts with typed relations (supports, composes, supports_hypothesis).
+  7. If a label needs refinement later, you can rename it while
      preserving the old name as an alias.
-  6. You can add extra aliases for any learned location label.
-  7. Use 'sense /path/to/media' to test a file-backed sensor input.
-  8. Type 'inspect' to review learned labels, aliases, and model stats.
+  8. You can add extra aliases for any learned location label.
+  9. Use 'sense /path/to/media' to test a file-backed sensor input.
+     Sensor input is now routed through modality-neutral ObservationBundle
+     normalization via an ImageAdapter.
+ 10. Type 'inspect' to review learned labels, relations, and model stats.
+ 11. Type 'concepts' to review concept nodes and their relations.
 
 Type 'quit' at any time to exit.
 Type 'inspect' to view learned location models.
 Type 'rename' to rename an existing label.
 Type 'alias' to add an alias to an existing label.
-Type 'sense /path/to/file' to learn or recognize a simulated sensor input.
+Type 'contain' to teach an enclosing location relation.
+Type 'overlap' to teach an overlapping location relation.
+Type 'context' to show active context for a location.
+Type 'concept' to create a typed concept node.
+Type 'relate' to link two concepts with a typed relation.
+Type 'concepts' to inspect all concept nodes and relations.
+Type 'sense /path/to/file' to learn or recognize via adapter -> bundle -> learning.
 Type 'reset' to clear all learned memory.
 --------------------------------------------------------"""
 
@@ -56,7 +72,7 @@ _WELCOME_QUIET = "agent online"
 
 
 class SessionController:
-    """Interactive Phase 4 control loop with injectable I/O for testing."""
+    """Interactive Phase 8 control loop with injectable I/O for testing."""
 
     def __init__(
         self,
@@ -74,6 +90,7 @@ class SessionController:
         self.output_func = output_func
         self.session_id = session_id or uuid.uuid4().hex
         self.quiet = quiet
+        self._image_adapter = ImageAdapter()
         self._observations_this_session = 0
         self._locations_learned = 0
         self._correct_guesses = 0
@@ -123,6 +140,69 @@ class SessionController:
         if self.quiet:
             return "alias name: "
         return "What alias should I add? "
+
+    @property
+    def _contain_parent_prompt(self) -> str:
+        if self.quiet:
+            return "contain parent: "
+        return "Which enclosing location should remain active? "
+
+    @property
+    def _contain_child_prompt(self) -> str:
+        if self.quiet:
+            return "contain child: "
+        return "Which nested location sits inside it? "
+
+    @property
+    def _overlap_first_prompt(self) -> str:
+        if self.quiet:
+            return "overlap first: "
+        return "Which location should be marked as overlapping? "
+
+    @property
+    def _overlap_second_prompt(self) -> str:
+        if self.quiet:
+            return "overlap second: "
+        return "What other location overlaps with it? "
+
+    @property
+    def _context_location_prompt(self) -> str:
+        if self.quiet:
+            return "context for: "
+        return "Which location's active context would you like to see? "
+
+    @property
+    def _concept_name_prompt(self) -> str:
+        if self.quiet:
+            return "concept name: "
+        return "What is the concept name? "
+
+    @property
+    def _concept_kind_prompt(self) -> str:
+        kinds = ", ".join(sorted(VALID_CONCEPT_KINDS))
+        if self.quiet:
+            return f"concept kind [{kinds}]: "
+        return f"What kind of concept? ({kinds}): "
+
+    @property
+    def _relate_source_prompt(self) -> str:
+        if self.quiet:
+            return "relate source: "
+        return "Which source concept? "
+
+    @property
+    def _relate_target_prompt(self) -> str:
+        if self.quiet:
+            return "relate target: "
+        return "Which target concept? "
+
+    @property
+    def _relate_kind_prompt(self) -> str:
+        concept_kinds = [k for k, v in VALID_RELATION_RULES.items() if ("concept", "concept") in v]
+        kinds_str = ", ".join(sorted(concept_kinds))
+        if self.quiet:
+            return f"relation kind [{kinds_str}]: "
+        return f"What relation kind? ({kinds_str}): "
 
     @property
     def _sensor_path_prompt(self) -> str:
@@ -252,6 +332,87 @@ class SessionController:
             return f"unchanged: {label}"
         return f'No change — "{label}" already resolves to the same label node.'
 
+    def _msg_relation_added(self, relation_kind: str, source: str, target: str) -> str:
+        if self.quiet:
+            if relation_kind == "contains":
+                return f"contains: {source} -> {target}"
+            return f"overlaps: {source} <-> {target}"
+        if relation_kind == "contains":
+            return f'Learned context: "{source}" contains "{target}".'
+        return f'Learned context: "{source}" overlaps "{target}".'
+
+    def _msg_relation_no_change(self, relation_kind: str, source: str, target: str) -> str:
+        if self.quiet:
+            if relation_kind == "contains":
+                return f"unchanged contains: {source} -> {target}"
+            return f"unchanged overlaps: {source} <-> {target}"
+        if relation_kind == "contains":
+            return f'No change — "{source}" already contains "{target}".'
+        return f'No change — "{source}" already overlaps "{target}".'
+
+    def _msg_relation_self(self, relation_kind: str, label: str) -> str:
+        if self.quiet:
+            if relation_kind == "contains":
+                return f"unchanged contains: {label} -> {label}"
+            return f"unchanged overlaps: {label} <-> {label}"
+        if relation_kind == "contains":
+            return f'No change — "{label}" cannot contain itself.'
+        return f'No change — "{label}" cannot overlap with itself.'
+
+    def _msg_active_context(self, names: list[str]) -> str:
+        joined = ", ".join(names)
+        if self.quiet:
+            return f"active-context: {joined}"
+        return f"Active context: {joined}."
+
+    def _msg_cycle_rejected(self, detail: str) -> str:
+        if self.quiet:
+            return f"cycle rejected: {detail}"
+        return f"Rejected — {detail}."
+
+    def _msg_context_no_relations(self, name: str) -> str:
+        if self.quiet:
+            return f"active-context: {name}"
+        return f'Active context for "{name}": {name} (no enclosing or overlapping relations).'
+
+    def _msg_concept_created(self, name: str, kind: str) -> str:
+        if self.quiet:
+            return f"concept: {name} ({kind})"
+        return f'Created concept "{name}" (kind: {kind}).'
+
+    def _msg_concept_exists(self, name: str) -> str:
+        if self.quiet:
+            return f"concept exists: {name}"
+        return f'Concept "{name}" already exists.'
+
+    def _msg_concept_not_found(self, name: str) -> str:
+        if self.quiet:
+            return f"concept not found: {name}"
+        return f'I could not find a concept named "{name}".'
+
+    def _msg_concept_linked(self, source: str, kind: str, target: str) -> str:
+        if self.quiet:
+            return f"linked: {source} -{kind}-> {target}"
+        return f'Linked: "{source}" -{kind}-> "{target}".'
+
+    def _msg_concept_link_exists(self, source: str, kind: str, target: str) -> str:
+        if self.quiet:
+            return f"unchanged: {source} -{kind}-> {target}"
+        return f'No change — "{source}" -{kind}-> "{target}" already exists.'
+
+    def _msg_invalid_concept_kind(self, kind: str) -> str:
+        valid = ", ".join(sorted(VALID_CONCEPT_KINDS))
+        if self.quiet:
+            return f"invalid kind: {kind}. valid: {valid}"
+        return f'Invalid concept kind "{kind}". Valid kinds: {valid}.'
+
+    def _msg_invalid_relation_kind(self, kind: str) -> str:
+        concept_kinds = sorted(k for k, v in VALID_RELATION_RULES.items() if ("concept", "concept") in v)
+        valid = ", ".join(concept_kinds)
+        if self.quiet:
+            return f"invalid relation: {kind}. valid: {valid}"
+        return f'Invalid relation kind "{kind}". Valid concept-to-concept kinds: {valid}.'
+
     def _msg_sensor_known(self, media_kind: str) -> str:
         if self.quiet:
             return f"sensor: recognized {media_kind}"
@@ -281,21 +442,34 @@ class SessionController:
                 aliases = ", ".join(model["aliases"]) if model["aliases"] else "-"
                 rename_count = len(model["rename_history"])
                 prototype = "n/a" if model["prototype"] is None else f"{model['prototype']:.6f}"
+                active_context = self._format_name_list(model["active_context"])
+                contains = self._format_name_list(model["contains"])
+                contained_by = self._format_name_list(model["contained_by"])
+                overlaps = self._format_name_list(model["overlaps"])
                 lines.append(
                     f"  {model['canonical_name']:20s}  [{model['label_id']}]  "
                     f"aliases={aliases}  proto={prototype}  "
                     f"spread={model['spread']:.6f}  obs={model['observation_count']}  "
                     f"renames={rename_count}"
                 )
+                lines.append(
+                    f"    context={active_context}  contains={contains}  "
+                    f"within={contained_by}  overlaps={overlaps}"
+                )
             lines.append("-------------------------------")
         else:
             for model in models:
                 aliases = ",".join(model["aliases"])
                 prototype = "na" if model["prototype"] is None else f"{model['prototype']:.6f}"
+                active_context = ",".join(model["active_context"])
+                contains = ",".join(model["contains"])
+                contained_by = ",".join(model["contained_by"])
+                overlaps = ",".join(model["overlaps"])
                 lines.append(
                     f"{model['canonical_name']}|{aliases}|{model['label_id']}|"
                     f"{prototype}|{model['spread']:.6f}|"
-                    f"{model['observation_count']}|{len(model['rename_history'])}"
+                    f"{model['observation_count']}|{len(model['rename_history'])}|"
+                    f"{active_context}|{contains}|{contained_by}|{overlaps}"
                 )
         return "\n".join(lines)
 
@@ -384,6 +558,165 @@ class SessionController:
             notes="alias_command",
         )
 
+    def _handle_context_query(self) -> None:
+        while True:
+            name = self._prompt_text(self._context_location_prompt)
+            resolved = self.store.lookup_by_label_name(name)
+            if resolved is None:
+                self.output_func(self._msg_label_not_found(name))
+                continue
+            break
+
+        model, label = resolved
+        names = self.store.active_context_names(model)
+        if len(names) <= 1:
+            self.output_func(self._msg_context_no_relations(label.canonical_name))
+        else:
+            self.output_func(self._msg_active_context(names))
+        self.event_logger.log(
+            "query",
+            session_id=self.session_id,
+            notes=f"context_command: {label.canonical_name} -> {','.join(names)}",
+        )
+
+    def _handle_concept_create(self) -> None:
+        name = self._prompt_text(self._concept_name_prompt)
+        while True:
+            kind = self._prompt_text(self._concept_kind_prompt).strip().lower()
+            if kind in VALID_CONCEPT_KINDS:
+                break
+            self.output_func(self._msg_invalid_concept_kind(kind))
+
+        existing = self.store.lookup_concept_by_name(name)
+        node = self.store.create_concept(name, concept_kind=kind)
+        if existing is not None:
+            self.output_func(self._msg_concept_exists(name))
+        else:
+            self.output_func(self._msg_concept_created(name, kind))
+            self.event_logger.log(
+                "memory_mutation",
+                session_id=self.session_id,
+                mutation_kind="concept_created",
+                new_record=node.to_dict(),
+                notes=f"concept_create: {name} ({kind})",
+            )
+
+    def _handle_relate(self) -> None:
+        while True:
+            source = self._prompt_text(self._relate_source_prompt).strip()
+            source_node = self.store.lookup_concept_by_name(source)
+            if source_node is not None:
+                break
+            self.output_func(self._msg_concept_not_found(source))
+
+        while True:
+            target = self._prompt_text(self._relate_target_prompt).strip()
+            target_node = self.store.lookup_concept_by_name(target)
+            if target_node is not None:
+                break
+            self.output_func(self._msg_concept_not_found(target))
+
+        concept_kinds = sorted(k for k, v in VALID_RELATION_RULES.items() if ("concept", "concept") in v)
+        while True:
+            kind = self._prompt_text(self._relate_kind_prompt).strip().lower()
+            if kind in concept_kinds:
+                break
+            self.output_func(self._msg_invalid_relation_kind(kind))
+
+        edge, created = self.store.link_concepts(source, target, relation_kind=kind)
+        if created:
+            self.output_func(self._msg_concept_linked(source, kind, target))
+            self.event_logger.log(
+                "memory_mutation",
+                session_id=self.session_id,
+                mutation_kind="concept_relation_added",
+                new_record=edge.to_dict(),
+                notes=f"relate_command: {source} -{kind}-> {target}",
+            )
+        else:
+            self.output_func(self._msg_concept_link_exists(source, kind, target))
+
+    def _format_concepts_inspect(self) -> str:
+        concepts = self.store.inspect_concepts()
+        if not concepts:
+            if self.quiet:
+                return "concepts: (none)"
+            return "No concepts have been created yet."
+        lines: list[str] = []
+        if not self.quiet:
+            lines.append("=== Concepts ===")
+        _REL_KEYS = ("supports", "supported_by", "composes", "composed_by", "supports_hypothesis", "hypothesis_supported_by")
+        for c in concepts:
+            name = c["concept_name"]
+            kind_tag = f" ({c['concept_kind']})" if not self.quiet else f"({c['concept_kind']})"
+            rel_pairs: list[tuple[str, str]] = []
+            for rk in _REL_KEYS:
+                for target in c.get(rk, []):
+                    rel_pairs.append((rk, target))
+            if self.quiet:
+                rel_str = ", ".join(f"-{rk}-> {t}" for rk, t in rel_pairs) if rel_pairs else ""
+                lines.append(f"  {name}{kind_tag}" + (f" [{rel_str}]" if rel_str else ""))
+            else:
+                lines.append(f"  {name}{kind_tag}")
+                for rk, t in rel_pairs:
+                    lines.append(f"    -> {rk} -> {t}")
+        return "\n".join(lines)
+
+    def _handle_location_relation(
+        self,
+        *,
+        relation_kind: str,
+        source_prompt: str,
+        target_prompt: str,
+        mutation_kind: str,
+        notes: str,
+    ) -> None:
+        while True:
+            source = self._prompt_text(source_prompt)
+            source_resolved = self.store.lookup_by_label_name(source)
+            if source_resolved is None:
+                self.output_func(self._msg_label_not_found(source))
+                continue
+            break
+
+        while True:
+            target = self._prompt_text(target_prompt)
+            target_resolved = self.store.lookup_by_label_name(target)
+            if target_resolved is None:
+                self.output_func(self._msg_label_not_found(target))
+                continue
+            break
+
+        source_model, source_label = source_resolved
+        target_model, target_label = target_resolved
+        source_name = source_label.canonical_name
+        target_name = target_label.canonical_name
+        if source_model.location_id == target_model.location_id:
+            self.output_func(self._msg_relation_self(relation_kind, source_name))
+            return
+
+        try:
+            edge, created = self.store.link_locations(
+                source_name,
+                target_name,
+                relation_kind=relation_kind,
+            )
+        except ValueError as exc:
+            self.output_func(self._msg_cycle_rejected(str(exc)))
+            return
+        if not created:
+            self.output_func(self._msg_relation_no_change(relation_kind, source_name, target_name))
+            return
+
+        self.output_func(self._msg_relation_added(relation_kind, source_name, target_name))
+        self.event_logger.log(
+            "memory_mutation",
+            session_id=self.session_id,
+            mutation_kind=mutation_kind,
+            new_record=None if edge is None else edge.to_dict(),
+            notes=notes,
+        )
+
     def _prompt_sensor_path(self) -> str:
         while True:
             try:
@@ -400,9 +733,14 @@ class SessionController:
         while True:
             candidate = raw_path or self._prompt_sensor_path()
             try:
-                sensor_observation = SensorObservation.from_path(candidate)
+                bundle = self._image_adapter.observe(candidate)
+                sensor_observation = self._image_adapter.sensor_observation_from_bundle(bundle)
             except SensorObservationError as exc:
                 self.output_func(str(exc))
+                raw_path = ""
+                continue
+            if sensor_observation is None:
+                self.output_func("could not read sensor data from bundle")
                 raw_path = ""
                 continue
             break
@@ -412,7 +750,9 @@ class SessionController:
             "observation",
             session_id=self.session_id,
             sensor_observation=sensor_observation,
-            notes="sensor_input",
+            bundle_id=bundle.bundle_id,
+            adapter_id=bundle.adapter_id,
+            notes="sensor_input_via_adapter",
         )
         recognized = self.store.lookup_sensor_binding(sensor_observation.fingerprint)
 
@@ -425,6 +765,7 @@ class SessionController:
                 "decision",
                 session_id=self.session_id,
                 sensor_observation=sensor_observation,
+                bundle_id=bundle.bundle_id,
                 guessed_label=guessed_label,
                 confidence=1.0,
                 notes="guess_known_location_from_sensor",
@@ -434,12 +775,14 @@ class SessionController:
                 "feedback",
                 session_id=self.session_id,
                 sensor_observation=sensor_observation,
+                bundle_id=bundle.bundle_id,
                 guessed_label=guessed_label,
                 confidence=1.0,
                 feedback=feedback,
             )
             if feedback == 1:
-                old_snapshot, new_snapshot, _ = self.store.bind_sensor_observation(
+                old_snapshot, new_snapshot, _ = self.store.bind_sensor_bundle(
+                    bundle,
                     sensor_observation,
                     guessed_label,
                 )
@@ -449,6 +792,7 @@ class SessionController:
                     "memory_mutation",
                     session_id=self.session_id,
                     sensor_observation=sensor_observation,
+                    bundle_id=bundle.bundle_id,
                     guessed_label=guessed_label,
                     confidence=1.0,
                     feedback=feedback,
@@ -457,11 +801,13 @@ class SessionController:
                     new_record=new_snapshot,
                     notes="sensor_guess_confirmed",
                 )
+                self._emit_active_context(new_snapshot)
                 return
 
             self.output_func(self._msg_ask_wrong())
             corrected_label = self._prompt_label()
-            old_snapshot, new_snapshot, created = self.store.bind_sensor_observation(
+            old_snapshot, new_snapshot, created = self.store.bind_sensor_bundle(
+                bundle,
                 sensor_observation,
                 corrected_label,
             )
@@ -477,6 +823,7 @@ class SessionController:
                 "memory_mutation",
                 session_id=self.session_id,
                 sensor_observation=sensor_observation,
+                bundle_id=bundle.bundle_id,
                 guessed_label=guessed_label,
                 confidence=1.0,
                 feedback=feedback,
@@ -485,12 +832,14 @@ class SessionController:
                 new_record=new_snapshot,
                 notes="sensor_guess_corrected",
             )
+            self._emit_active_context(new_snapshot)
             return
 
         self.event_logger.log(
             "decision",
             session_id=self.session_id,
             sensor_observation=sensor_observation,
+            bundle_id=bundle.bundle_id,
             notes="ask_for_sensor_location_label",
         )
         self.output_func(self._msg_sensor_unknown(sensor_observation.media_kind))
@@ -499,10 +848,12 @@ class SessionController:
             "feedback",
             session_id=self.session_id,
             sensor_observation=sensor_observation,
+            bundle_id=bundle.bundle_id,
             guessed_label=label,
             notes="user_supplied_label_for_sensor",
         )
-        old_snapshot, new_snapshot, created = self.store.bind_sensor_observation(
+        old_snapshot, new_snapshot, created = self.store.bind_sensor_bundle(
+            bundle,
             sensor_observation,
             label,
         )
@@ -517,12 +868,14 @@ class SessionController:
             "memory_mutation",
             session_id=self.session_id,
             sensor_observation=sensor_observation,
+            bundle_id=bundle.bundle_id,
             guessed_label=label,
             mutation_kind="sensor_binding_created",
             old_record=old_snapshot,
             new_record=new_snapshot,
             notes="sensor_learned",
         )
+        self._emit_active_context(new_snapshot)
 
     # -- main loop ---------------------------------------------------
 
@@ -563,6 +916,56 @@ class SessionController:
                 except EOFError:
                     self._close_session("eof")
                     return
+                continue
+            if lowered == "contain":
+                try:
+                    self._handle_location_relation(
+                        relation_kind="contains",
+                        source_prompt=self._contain_parent_prompt,
+                        target_prompt=self._contain_child_prompt,
+                        mutation_kind="location_containment_added",
+                        notes="contain_command",
+                    )
+                except EOFError:
+                    self._close_session("eof")
+                    return
+                continue
+            if lowered == "overlap":
+                try:
+                    self._handle_location_relation(
+                        relation_kind="overlaps",
+                        source_prompt=self._overlap_first_prompt,
+                        target_prompt=self._overlap_second_prompt,
+                        mutation_kind="location_overlap_added",
+                        notes="overlap_command",
+                    )
+                except EOFError:
+                    self._close_session("eof")
+                    return
+                continue
+            if lowered == "context":
+                try:
+                    self._handle_context_query()
+                except EOFError:
+                    self._close_session("eof")
+                    return
+                continue
+            if lowered == "concept":
+                try:
+                    self._handle_concept_create()
+                except EOFError:
+                    self._close_session("eof")
+                    return
+                continue
+            if lowered == "relate":
+                try:
+                    self._handle_relate()
+                except EOFError:
+                    self._close_session("eof")
+                    return
+                continue
+            if lowered == "concepts":
+                self.output_func(self._format_concepts_inspect())
                 continue
             if command.lower() == "sense":
                 try:
@@ -640,6 +1043,7 @@ class SessionController:
                     new_record=self.store.snapshot_location(new_model),
                     notes="correct_guess_merged",
                 )
+                self._emit_active_context(self.store.snapshot_location(new_model))
                 return
 
             self.output_func(self._msg_ask_wrong())
@@ -675,6 +1079,7 @@ class SessionController:
                 new_record=new_snapshot,
                 notes="wrong_guess_relabel",
             )
+            self._emit_active_context(new_snapshot)
             return
 
         if model is not None and confidence > 0.0:
@@ -720,6 +1125,7 @@ class SessionController:
                     new_record=self.store.snapshot_location(new_model),
                     notes="uncertain_guess_confirmed_merged",
                 )
+                self._emit_active_context(self.store.snapshot_location(new_model))
                 return
 
             self.output_func(self._msg_ask_unknown())
@@ -809,6 +1215,7 @@ class SessionController:
                     new_record=self.store.snapshot_location(new_model),
                     notes="existing_label_reused",
                 )
+                self._emit_active_context(self.store.snapshot_location(new_model))
                 return
 
             collision = self.store.find_near_collision(observation)
@@ -847,6 +1254,7 @@ class SessionController:
             new_record=self.store.snapshot_location(new_model),
             notes="new_location_learned",
         )
+        self._emit_active_context(self.store.snapshot_location(new_model))
 
     def _prompt_feedback(self) -> int:
         while True:
@@ -874,6 +1282,18 @@ class SessionController:
 
     def _prompt_label(self) -> str:
         return self._prompt_text(self._label_prompt)
+
+    def _emit_active_context(self, snapshot: dict[str, object]) -> None:
+        raw_names = snapshot.get("active_context", [])
+        if not isinstance(raw_names, list):
+            return
+        names = [str(name) for name in raw_names if str(name)]
+        if len(names) <= 1:
+            return
+        self.output_func(self._msg_active_context(names))
+
+    def _format_name_list(self, names: list[str]) -> str:
+        return ", ".join(names) if names else "-"
 
     def _close_session(self, note: str) -> None:
         self.event_logger.log("session_end", session_id=self.session_id, notes=note)

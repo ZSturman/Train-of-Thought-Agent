@@ -13,15 +13,20 @@ from location_agent.models import (
     DEFAULT_TOLERANCE,
     EvidenceRecord,
     GraphEdge,
+    ImageAdapter,
     LabelNameError,
     LabelNode,
     LocationModel,
     LocationRecord,
     NormalizedObservation,
+    ObservationBundle,
+    RegionDescriptor,
     RenameRecord,
     SCHEMA_VERSION,
+    SensorAdapter,
     SensorBinding,
     SensorObservation,
+    VALID_CONCEPT_KINDS,
     distance_to_confidence,
     label_lookup_key,
     normalize_label_name,
@@ -29,6 +34,7 @@ from location_agent.models import (
     scalar_distance,
     utc_now_iso,
     validate_provenance_source,
+    validate_relation,
 )
 
 
@@ -157,6 +163,7 @@ class MemoryStore:
         results = []
         for raw_model in self._data["location_models"].values():
             results.append(self.snapshot_location(LocationModel.from_dict(raw_model)))
+        results.sort(key=lambda model: str(model["canonical_name"]).casefold())
         return results
 
     def snapshot_location(self, model: LocationModel | str) -> dict[str, Any]:
@@ -167,6 +174,7 @@ class MemoryStore:
         if current is None:
             raise KeyError("location model not found")
         label_node = self._require_label_node(current.label_id)
+        relations = self.location_relations(current.location_id)
         return {
             "location_id": current.location_id,
             "label_id": label_node.label_id,
@@ -187,6 +195,9 @@ class MemoryStore:
             "provenance_source": current.provenance_source,
             "provenance_detail": current.provenance_detail,
             "active_context": self.active_context_names(current.location_id),
+            "contains": relations["contains"],
+            "contained_by": relations["contained_by"],
+            "overlaps": relations["overlaps"],
             "concepts": self.location_concepts(current.location_id),
             "sensor_binding_count": self._sensor_binding_count(current.location_id),
         }
@@ -216,6 +227,30 @@ class MemoryStore:
                 if concept is not None:
                     concepts.append(concept.concept_name)
         return sorted(set(concepts), key=str.casefold)
+
+    def location_relations(self, location_ref: LocationModel | str) -> dict[str, list[str]]:
+        location_id = self._coerce_location_id(location_ref)
+        relations: dict[str, list[str]] = {
+            "contains": [],
+            "contained_by": [],
+            "overlaps": [],
+        }
+        for edge in self._iter_location_relation_edges():
+            if edge.relation_kind == "contains":
+                if edge.source_node_id == location_id:
+                    relations["contains"].append(self._location_name(edge.target_node_id))
+                elif edge.target_node_id == location_id:
+                    relations["contained_by"].append(self._location_name(edge.source_node_id))
+                continue
+            if edge.relation_kind == "overlaps":
+                if edge.source_node_id == location_id:
+                    relations["overlaps"].append(self._location_name(edge.target_node_id))
+                elif edge.target_node_id == location_id:
+                    relations["overlaps"].append(self._location_name(edge.source_node_id))
+
+        for relation_kind, names in relations.items():
+            relations[relation_kind] = sorted(set(names), key=str.casefold)
+        return relations
 
     def is_outlier(self, model: LocationModel, value: float) -> bool:
         if model.prototype is None:
@@ -441,42 +476,68 @@ class MemoryStore:
         relation_kind: str = "contains",
         provenance_source: str = "user",
         provenance_detail: str = "manual_location_relation",
-    ) -> GraphEdge:
-        parent_model, _ = self._require_named_location(parent_name)
-        child_model, _ = self._require_named_location(child_name)
+    ) -> tuple[GraphEdge | None, bool]:
+        parent_model, parent_label = self._require_named_location(parent_name)
+        child_model, child_label = self._require_named_location(child_name)
+        if parent_model.location_id == child_model.location_id:
+            return None, False
+
+        if relation_kind == "contains" and self._would_create_containment_cycle(
+            child_location_id=child_model.location_id,
+            parent_location_id=parent_model.location_id,
+        ):
+            raise ValueError(
+                f"cannot create containment cycle: "
+                f'"{child_label.canonical_name}" already transitively contains '
+                f'"{parent_label.canonical_name}"'
+            )
+
+        source_model = parent_model
+        target_model = child_model
+        source_name = parent_label.canonical_name
+        target_name = child_label.canonical_name
+        if relation_kind == "overlaps" and target_model.location_id < source_model.location_id:
+            source_model, target_model = target_model, source_model
+            source_name, target_name = target_name, source_name
+
         existing = self._find_graph_edge(
-            source_node_id=parent_model.location_id,
+            source_node_id=source_model.location_id,
             source_node_type="location",
-            target_node_id=child_model.location_id,
+            target_node_id=target_model.location_id,
             target_node_type="location",
             relation_kind=relation_kind,
         )
         if existing is not None:
-            edge = replace(existing, updated_at=utc_now_iso())
-        else:
-            timestamp = utc_now_iso()
-            edge = GraphEdge(
-                edge_id=f"edge-{uuid.uuid4().hex[:12]}",
-                source_node_id=parent_model.location_id,
-                source_node_type="location",
-                target_node_id=child_model.location_id,
-                target_node_type="location",
-                relation_kind=relation_kind,
-                created_at=timestamp,
-                updated_at=timestamp,
-                provenance_source=validate_provenance_source(provenance_source),
-                provenance_detail=provenance_detail,
-            )
+            return existing, False
+
+        timestamp = utc_now_iso()
+        edge = GraphEdge(
+            edge_id=f"edge-{uuid.uuid4().hex[:12]}",
+            source_node_id=source_model.location_id,
+            source_node_type="location",
+            target_node_id=target_model.location_id,
+            target_node_type="location",
+            relation_kind=relation_kind,
+            created_at=timestamp,
+            updated_at=timestamp,
+            provenance_source=validate_provenance_source(provenance_source),
+            provenance_detail=provenance_detail,
+        )
         self._store_graph_edge(edge)
+        relation_text = (
+            f"{source_name}<->{target_name}"
+            if relation_kind == "overlaps"
+            else f"{source_name}->{target_name}"
+        )
         self._append_evidence(
             owner_node_id=edge.edge_id,
             owner_node_type="edge",
             source_kind=edge.provenance_source,
             channel="location_relation",
-            value_text=f"{normalize_label_name(parent_name)}->{normalize_label_name(child_name)}",
+            value_text=relation_text,
         )
         self._save()
-        return edge
+        return edge, True
 
     def attach_concept(
         self,
@@ -526,6 +587,161 @@ class MemoryStore:
         )
         self._save()
         return concept, edge
+
+    # -- concept CRUD ----------------------------------------------------
+
+    def create_concept(
+        self,
+        name: str,
+        concept_kind: str = "named",
+        *,
+        provenance_source: str = "user",
+        provenance_detail: str = "manual_concept",
+    ) -> ConceptNode:
+        concept = self._ensure_concept_node(
+            name,
+            concept_kind=concept_kind,
+            provenance_source=provenance_source,
+            provenance_detail=provenance_detail,
+        )
+        self._save()
+        return concept
+
+    def lookup_concept_by_name(self, name: str) -> ConceptNode | None:
+        concept_id = self._concept_index().get(label_lookup_key(name))
+        if concept_id is None:
+            return None
+        return self.get_concept_node(concept_id)
+
+    def alias_concept(self, concept_name: str, new_alias: str) -> ConceptNode:
+        concept = self.lookup_concept_by_name(concept_name)
+        if concept is None:
+            raise LabelLookupError(f'concept not found: "{concept_name}"')
+        normalized_alias = normalize_label_name(new_alias)
+        existing_owner = self._concept_index().get(label_lookup_key(normalized_alias))
+        if existing_owner is not None and existing_owner != concept.concept_id:
+            raise LabelConflictError(f'concept alias "{normalized_alias}" is already in use')
+        if label_lookup_key(normalized_alias) in {label_lookup_key(n) for n in concept.all_names()}:
+            return concept
+        updated = replace(
+            concept,
+            aliases=concept.aliases + (normalized_alias,),
+            updated_at=utc_now_iso(),
+        )
+        self._store_concept_node(updated)
+        self._save()
+        return updated
+
+    def link_concepts(
+        self,
+        source_name: str,
+        target_name: str,
+        relation_kind: str,
+        *,
+        provenance_source: str = "user",
+        provenance_detail: str = "manual_concept_relation",
+    ) -> tuple[GraphEdge, bool]:
+        source_concept = self.lookup_concept_by_name(source_name)
+        if source_concept is None:
+            raise LabelLookupError(f'concept not found: "{source_name}"')
+        target_concept = self.lookup_concept_by_name(target_name)
+        if target_concept is None:
+            raise LabelLookupError(f'concept not found: "{target_name}"')
+        if source_concept.concept_id == target_concept.concept_id:
+            raise ValueError("cannot link a concept to itself")
+        validate_relation(relation_kind, "concept", "concept")
+        existing = self._find_graph_edge(
+            source_node_id=source_concept.concept_id,
+            source_node_type="concept",
+            target_node_id=target_concept.concept_id,
+            target_node_type="concept",
+            relation_kind=relation_kind,
+        )
+        if existing is not None:
+            return existing, False
+        timestamp = utc_now_iso()
+        edge = GraphEdge(
+            edge_id=f"edge-{uuid.uuid4().hex[:12]}",
+            source_node_id=source_concept.concept_id,
+            source_node_type="concept",
+            target_node_id=target_concept.concept_id,
+            target_node_type="concept",
+            relation_kind=relation_kind,
+            created_at=timestamp,
+            updated_at=timestamp,
+            provenance_source=validate_provenance_source(provenance_source),
+            provenance_detail=provenance_detail,
+        )
+        self._store_graph_edge(edge)
+        self._append_evidence(
+            owner_node_id=edge.edge_id,
+            owner_node_type="edge",
+            source_kind=edge.provenance_source,
+            channel="concept_relation",
+            value_text=f"{source_concept.concept_name} -{relation_kind}-> {target_concept.concept_name}",
+        )
+        self._save()
+        return edge, True
+
+    def concept_relations(self, concept_ref: ConceptNode | str) -> dict[str, list[str]]:
+        if isinstance(concept_ref, ConceptNode):
+            concept_id = concept_ref.concept_id
+        else:
+            concept = self.lookup_concept_by_name(concept_ref)
+            if concept is None:
+                raise LabelLookupError(f'concept not found: "{concept_ref}"')
+            concept_id = concept.concept_id
+        relations: dict[str, list[str]] = {
+            "supports": [],
+            "supported_by": [],
+            "composes": [],
+            "composed_by": [],
+            "supports_hypothesis": [],
+            "hypothesis_supported_by": [],
+        }
+        for raw_edge in self._data["graph_edges"].values():
+            edge = GraphEdge.from_dict(raw_edge)
+            if edge.source_node_type != "concept" or edge.target_node_type != "concept":
+                continue
+            if edge.source_node_id == concept_id:
+                target = self.get_concept_node(edge.target_node_id)
+                name = target.concept_name if target else edge.target_node_id
+                if edge.relation_kind == "supports":
+                    relations["supports"].append(name)
+                elif edge.relation_kind == "composes":
+                    relations["composes"].append(name)
+                elif edge.relation_kind == "supports_hypothesis":
+                    relations["supports_hypothesis"].append(name)
+            elif edge.target_node_id == concept_id:
+                source = self.get_concept_node(edge.source_node_id)
+                name = source.concept_name if source else edge.source_node_id
+                if edge.relation_kind == "supports":
+                    relations["supported_by"].append(name)
+                elif edge.relation_kind == "composes":
+                    relations["composed_by"].append(name)
+                elif edge.relation_kind == "supports_hypothesis":
+                    relations["hypothesis_supported_by"].append(name)
+        for key in relations:
+            relations[key] = sorted(set(relations[key]), key=str.casefold)
+        return relations
+
+    def inspect_concepts(self) -> list[dict[str, object]]:
+        result: list[dict[str, object]] = []
+        for raw_concept in self._data["concept_nodes"].values():
+            concept = ConceptNode.from_dict(raw_concept)
+            rels = self.concept_relations(concept)
+            result.append({
+                "concept_id": concept.concept_id,
+                "concept_name": concept.concept_name,
+                "concept_kind": concept.concept_kind,
+                "aliases": list(concept.aliases),
+                "provenance_source": concept.provenance_source,
+                **rels,
+            })
+        result.sort(key=lambda c: str(c["concept_name"]).casefold())
+        return result
+
+    # -- sensor binding --------------------------------------------------
 
     def bind_sensor_observation(
         self,
@@ -588,6 +804,29 @@ class MemoryStore:
         )
         self._save()
         return old_snapshot, self.snapshot_location(target_model.location_id), created_new_location
+
+    # -- observation bundle storage --------------------------------------
+
+    def store_bundle(self, bundle: ObservationBundle) -> None:
+        """Persist an ``ObservationBundle`` keyed by ``bundle_id``."""
+        self._data["observation_bundles"][bundle.bundle_id] = bundle.to_dict()
+        self._save()
+
+    def get_bundle(self, bundle_id: str) -> ObservationBundle | None:
+        raw = self._data["observation_bundles"].get(bundle_id)
+        if raw is None:
+            return None
+        return ObservationBundle.from_dict(raw)
+
+    def bind_sensor_bundle(
+        self,
+        bundle: ObservationBundle,
+        sensor_observation: SensorObservation,
+        label: str,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any], bool]:
+        """Bind a sensor observation via its bundle, persisting both the bundle and binding."""
+        self.store_bundle(bundle)
+        return self.bind_sensor_observation(sensor_observation, label)
 
     # -- persistence internals -------------------------------------------
 
@@ -693,12 +932,24 @@ class MemoryStore:
             payload["schema_version"] = 5
             version = 5
 
+        if version < 6:
+            for raw_concept in payload.get("concept_nodes", {}).values():
+                raw_concept.setdefault("concept_kind", "named")
+            payload["schema_version"] = 6
+            version = 6
+
+        if version < 7:
+            payload.setdefault("observation_bundles", {})
+            payload["schema_version"] = 7
+            version = 7
+
         payload.setdefault("location_models", {})
         payload.setdefault("label_nodes", {})
         payload.setdefault("concept_nodes", {})
         payload.setdefault("graph_edges", {})
         payload.setdefault("sensor_bindings", {})
         payload.setdefault("evidence_records", {})
+        payload.setdefault("observation_bundles", {})
         payload["confidence_policy"].setdefault("outlier_factor", DEFAULT_OUTLIER_FACTOR)
         payload["schema_version"] = version
 
@@ -721,6 +972,7 @@ class MemoryStore:
             "graph_edges": {},
             "sensor_bindings": {},
             "evidence_records": {},
+            "observation_bundles": {},
         }
 
     def _default_confidence_policy(self) -> dict[str, Any]:
@@ -754,6 +1006,7 @@ class MemoryStore:
         self._data["concept_nodes"][concept_node.concept_id] = concept_node.to_dict()
 
     def _store_graph_edge(self, edge: GraphEdge) -> None:
+        validate_relation(edge.relation_kind, edge.source_node_type, edge.target_node_type)
         self._data["graph_edges"][edge.edge_id] = edge.to_dict()
 
     def _store_sensor_binding(self, binding: SensorBinding) -> None:
@@ -853,9 +1106,12 @@ class MemoryStore:
         self,
         concept_name: str,
         *,
+        concept_kind: str = "named",
         provenance_source: str,
         provenance_detail: str,
     ) -> ConceptNode:
+        if concept_kind not in VALID_CONCEPT_KINDS:
+            raise ValueError(f"invalid concept_kind: {concept_kind!r}")
         concept_id = self._concept_index().get(label_lookup_key(concept_name))
         if concept_id is not None:
             concept = self.get_concept_node(concept_id)
@@ -866,6 +1122,7 @@ class MemoryStore:
         concept = ConceptNode(
             concept_id=f"concept-{uuid.uuid4().hex[:12]}",
             concept_name=normalize_label_name(concept_name),
+            concept_kind=concept_kind,
             aliases=(),
             created_at=timestamp,
             updated_at=timestamp,
@@ -897,33 +1154,26 @@ class MemoryStore:
 
         while frontier:
             current_id = frontier.pop(0)
-            for raw_edge in self._data["graph_edges"].values():
-                edge = GraphEdge.from_dict(raw_edge)
+            for edge in self._iter_location_relation_edges():
                 if (
                     edge.relation_kind == "contains"
-                    and edge.source_node_type == "location"
-                    and edge.target_node_type == "location"
                     and edge.target_node_id == current_id
                     and edge.source_node_id not in seen
                 ):
                     seen.add(edge.source_node_id)
                     ordered.append(edge.source_node_id)
                     frontier.append(edge.source_node_id)
-
-        for raw_edge in self._data["graph_edges"].values():
-            edge = GraphEdge.from_dict(raw_edge)
-            if edge.relation_kind != "overlaps":
-                continue
-            if edge.source_node_type != "location" or edge.target_node_type != "location":
-                continue
-            other_id = None
-            if edge.source_node_id == location_id:
-                other_id = edge.target_node_id
-            elif edge.target_node_id == location_id:
-                other_id = edge.source_node_id
-            if other_id is not None and other_id not in seen:
-                seen.add(other_id)
-                ordered.append(other_id)
+                if edge.relation_kind != "overlaps":
+                    continue
+                other_id = None
+                if edge.source_node_id == current_id:
+                    other_id = edge.target_node_id
+                elif edge.target_node_id == current_id:
+                    other_id = edge.source_node_id
+                if other_id is not None and other_id not in seen:
+                    seen.add(other_id)
+                    ordered.append(other_id)
+                    frontier.append(other_id)
         return ordered
 
     def _sensor_binding_count(self, location_id: str) -> int:
@@ -954,6 +1204,49 @@ class MemoryStore:
             ):
                 return edge
         return None
+
+    def _iter_location_relation_edges(self) -> list[GraphEdge]:
+        edges: list[GraphEdge] = []
+        for raw_edge in self._data["graph_edges"].values():
+            edge = GraphEdge.from_dict(raw_edge)
+            if edge.source_node_type != "location" or edge.target_node_type != "location":
+                continue
+            edges.append(edge)
+        return edges
+
+    def _would_create_containment_cycle(
+        self,
+        child_location_id: str,
+        parent_location_id: str,
+    ) -> bool:
+        """Return True if making *parent* contain *child* would create a cycle.
+
+        A cycle exists when *child* already transitively contains *parent*
+        through existing ``contains`` edges.  We walk upward from *parent*
+        through reverse ``contains`` edges (i.e. edges where *parent* is the
+        target / contained node) and check whether *child* is reachable as an
+        ancestor.
+        """
+        visited: set[str] = set()
+        stack = [parent_location_id]
+        while stack:
+            current = stack.pop()
+            if current == child_location_id:
+                return True
+            if current in visited:
+                continue
+            visited.add(current)
+            for edge in self._iter_location_relation_edges():
+                if edge.relation_kind == "contains" and edge.target_node_id == current:
+                    stack.append(edge.source_node_id)
+        return False
+
+    def _location_name(self, location_id: str) -> str:
+        model = self.lookup_by_id(location_id)
+        if model is None:
+            raise KeyError(f"location model not found: {location_id}")
+        label_node = self._require_label_node(model.label_id)
+        return label_node.canonical_name
 
     def _disambiguate_migrated_name(
         self,

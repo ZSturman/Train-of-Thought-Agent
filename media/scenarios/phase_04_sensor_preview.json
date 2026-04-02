@@ -1,0 +1,31 @@
+{
+  "scenario_id": "phase_04_sensor_preview",
+  "phase": 4,
+  "goal": "Validate committed still-image fixtures through unknown learning, exact re-recognition, and unrelated-image prompting.",
+  "steps": [
+    {
+      "step_id": "learn_break_room_from_image",
+      "asset_ids": [
+        "phase04_break_room_scene"
+      ],
+      "action": "sense fixture path and provide the canonical label `break room`",
+      "expected_outcome": "The first observation is unknown, the user labels it, and the agent creates a sensor-bound location."
+    },
+    {
+      "step_id": "recognize_break_room_again",
+      "asset_ids": [
+        "phase04_break_room_scene"
+      ],
+      "action": "sense the same fixture path again and confirm the guess",
+      "expected_outcome": "The agent recognizes the exact same fingerprint as `break room` with direct sensor provenance."
+    },
+    {
+      "step_id": "confirm_unrelated_image_is_still_unknown",
+      "asset_ids": [
+        "phase04_unknown_scene"
+      ],
+      "action": "sense the unrelated fixture path before it has been taught",
+      "expected_outcome": "The agent treats the image as new and asks the user what location it represents."
+    }
+  ]
+}

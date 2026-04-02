@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "asset_id": "phase04_break_room_scene",
+      "phase": 4,
+      "location_label": "break room",
+      "scene_name": "Break room still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase04_break_room_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_04_sensor_preview",
+        "phase_07_sensor_preview_regression"
+      ],
+      "notes": "Abstract fixture for direct sense learning and re-recognition."
+    },
+    {
+      "asset_id": "phase04_bedroom_scene",
+      "phase": 4,
+      "location_label": "bedroom",
+      "scene_name": "Bedroom still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase04_bedroom_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_04_core_scene_gallery",
+        "phase_05_nested_context_walk",
+        "phase_07_sensor_preview_regression",
+        "phase_08_observation_bundle_contract"
+      ],
+      "notes": "Core room fixture reserved for later nested-context and entity work."
+    },
+    {
+      "asset_id": "phase04_living_room_scene",
+      "phase": 4,
+      "location_label": "living room",
+      "scene_name": "Living room still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase04_living_room_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_04_core_scene_gallery",
+        "phase_05_nested_context_walk"
+      ],
+      "notes": "Core room fixture reserved for later containment and transition scenarios."
+    },
+    {
+      "asset_id": "phase05_house_scene",
+      "phase": 5,
+      "location_label": "house",
+      "scene_name": "House anchor still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase05_house_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_05_nested_context_walk"
+      ],
+      "notes": "Committed enclosing-context fixture used to keep a house context active while nested rooms change."
+    },
+    {
+      "asset_id": "phase04_hallway_scene",
+      "phase": 4,
+      "location_label": "hallway",
+      "scene_name": "Hallway still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase04_hallway_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_04_core_scene_gallery"
+      ],
+      "notes": "Transition-oriented fixture reserved for doorway and boundary phases."
+    },
+    {
+      "asset_id": "phase04_doorway_scene",
+      "phase": 4,
+      "location_label": "doorway",
+      "scene_name": "Doorway still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase04_doorway_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_04_core_scene_gallery"
+      ],
+      "notes": "Threshold fixture reserved for transition and ambiguity work."
+    },
+    {
+      "asset_id": "phase04_lobby_scene",
+      "phase": 4,
+      "location_label": "lobby",
+      "scene_name": "Lobby still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase04_lobby_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_04_core_scene_gallery",
+        "phase_07_sensor_preview_regression"
+      ],
+      "notes": "Open-area fixture reserved for relation and hierarchy scenarios."
+    },
+    {
+      "asset_id": "phase04_unknown_scene",
+      "phase": 4,
+      "location_label": null,
+      "scene_name": "Unknown still-image fixture",
+      "modality": "image",
+      "path": "media/core_images/phase04_unknown_scene.png",
+      "source_kind": "generated-local",
+      "license": "local-generated-demo",
+      "used_for": [
+        "phase_04_sensor_preview",
+        "phase_07_sensor_preview_regression"
+      ],
+      "notes": "Intentional unknown scene used to verify the sensor preview asks for a label."
+    }
+  ]
+}

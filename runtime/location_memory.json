@@ -9,6 +9,19 @@
   },
   "created_at": "2026-03-29T09:53:34+00:00",
   "evidence_records": {
+    "evidence-13abce8a7b78": {
+      "channel": "sensor_path",
+      "created_at": "2026-03-29T13:16:10+00:00",
+      "evidence_id": "evidence-13abce8a7b78",
+      "media_kind": "image",
+      "media_path": "/Users/zacharysturman/Downloads/PORTFOLIO/Technology/ToT/media/core_images/phase04_hallway_scene.png",
+      "observation_value": null,
+      "owner_node_id": "loc-32cb8e9d5d60",
+      "owner_node_type": "location",
+      "sensor_fingerprint": "2b68d0ae6e58e8e371922e7b2f4dbfd9ee91309cd3434ee4a98a44642399da4f",
+      "source_kind": "sensor",
+      "value_text": "hallway"
+    },
     "evidence-2d10f00387e8": {
       "channel": "label_reuse",
       "created_at": "2026-03-29T11:48:51+00:00",
@@ -21,6 +34,71 @@
       "sensor_fingerprint": null,
       "source_kind": "user",
       "value_text": "Point one"
+    },
+    "evidence-3cfa66c54a4f": {
+      "channel": "sensor_label_confirmation",
+      "created_at": "2026-03-29T13:15:49+00:00",
+      "evidence_id": "evidence-3cfa66c54a4f",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": null,
+      "owner_node_id": "label-7b1b52c4c4a8",
+      "owner_node_type": "label",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "bedroom"
+    },
+    "evidence-454f44dcc653": {
+      "channel": "sensor_path",
+      "created_at": "2026-03-29T13:15:49+00:00",
+      "evidence_id": "evidence-454f44dcc653",
+      "media_kind": "image",
+      "media_path": "/Users/zacharysturman/Downloads/PORTFOLIO/Technology/ToT/media/core_images/phase04_bedroom_scene.png",
+      "observation_value": null,
+      "owner_node_id": "loc-9e54812dff4c",
+      "owner_node_type": "location",
+      "sensor_fingerprint": "f22594b1d027a87b71adfa3d96bb8441c044f19e60f7b73f9f4a422df8dd78e0",
+      "source_kind": "sensor",
+      "value_text": "bedroom"
+    },
+    "evidence-558078e3058c": {
+      "channel": "guess_confirmation",
+      "created_at": "2026-04-02T00:19:40+00:00",
+      "evidence_id": "evidence-558078e3058c",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": 0.4,
+      "owner_node_id": "loc-21843234970f",
+      "owner_node_type": "location",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": null
+    },
+    "evidence-5b14594d6cc0": {
+      "channel": "scalar_observation",
+      "created_at": "2026-04-02T00:18:53+00:00",
+      "evidence_id": "evidence-5b14594d6cc0",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": 0.5,
+      "owner_node_id": "loc-21843234970f",
+      "owner_node_type": "location",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "Point five"
+    },
+    "evidence-6d086e73ef01": {
+      "channel": "guess_confirmation",
+      "created_at": "2026-04-02T00:56:15+00:00",
+      "evidence_id": "evidence-6d086e73ef01",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": 0.1,
+      "owner_node_id": "loc-a3cd3f221828",
+      "owner_node_type": "location",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": null
     },
     "evidence-6fc24e3c8067": {
       "channel": "guess_confirmation",
@@ -35,6 +113,32 @@
       "source_kind": "user",
       "value_text": null
     },
+    "evidence-7061804b379a": {
+      "channel": "label_created",
+      "created_at": "2026-04-02T00:18:53+00:00",
+      "evidence_id": "evidence-7061804b379a",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": null,
+      "owner_node_id": "label-204df45fae45",
+      "owner_node_type": "label",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "Point five"
+    },
+    "evidence-b436440b8758": {
+      "channel": "label_correction",
+      "created_at": "2026-04-02T00:19:25+00:00",
+      "evidence_id": "evidence-b436440b8758",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": 0.45,
+      "owner_node_id": "loc-21843234970f",
+      "owner_node_type": "location",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "Middle of the numbers"
+    },
     "evidence-b6f8c3e26891": {
       "channel": "label_reuse",
       "created_at": "2026-03-29T11:47:41+00:00",
@@ -48,6 +152,19 @@
       "source_kind": "user",
       "value_text": "Point one"
     },
+    "evidence-c182d2f18563": {
+      "channel": "label_created",
+      "created_at": "2026-03-29T13:16:10+00:00",
+      "evidence_id": "evidence-c182d2f18563",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": null,
+      "owner_node_id": "label-b9d6b46ed6f3",
+      "owner_node_type": "label",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "hallway"
+    },
     "evidence-c41246d8202b": {
       "channel": "guess_confirmation",
       "created_at": "2026-03-29T11:48:16+00:00",
@@ -60,6 +177,32 @@
       "sensor_fingerprint": null,
       "source_kind": "user",
       "value_text": null
+    },
+    "evidence-cdbcbb50b498": {
+      "channel": "label_created",
+      "created_at": "2026-03-29T13:15:26+00:00",
+      "evidence_id": "evidence-cdbcbb50b498",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": null,
+      "owner_node_id": "label-7b1b52c4c4a8",
+      "owner_node_type": "label",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "bedroom"
+    },
+    "evidence-da8f3a6b2980": {
+      "channel": "sensor_label_confirmation",
+      "created_at": "2026-03-29T13:15:26+00:00",
+      "evidence_id": "evidence-da8f3a6b2980",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": null,
+      "owner_node_id": "label-7b1b52c4c4a8",
+      "owner_node_type": "label",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "bedroom"
     },
     "evidence-db96d3b2b8d9": {
       "channel": "guess_confirmation",
@@ -86,10 +229,67 @@
       "sensor_fingerprint": null,
       "source_kind": "user",
       "value_text": "Point one"
+    },
+    "evidence-f23ec58a5a63": {
+      "channel": "sensor_path",
+      "created_at": "2026-03-29T13:15:26+00:00",
+      "evidence_id": "evidence-f23ec58a5a63",
+      "media_kind": "image",
+      "media_path": "/Users/zacharysturman/Downloads/PORTFOLIO/Technology/ToT/media/core_images/phase04_bedroom_scene.png",
+      "observation_value": null,
+      "owner_node_id": "loc-9e54812dff4c",
+      "owner_node_type": "location",
+      "sensor_fingerprint": "f22594b1d027a87b71adfa3d96bb8441c044f19e60f7b73f9f4a422df8dd78e0",
+      "source_kind": "sensor",
+      "value_text": "bedroom"
+    },
+    "evidence-f88863d4c993": {
+      "channel": "sensor_label_confirmation",
+      "created_at": "2026-03-29T13:16:10+00:00",
+      "evidence_id": "evidence-f88863d4c993",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": null,
+      "owner_node_id": "label-b9d6b46ed6f3",
+      "owner_node_type": "label",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "hallway"
+    },
+    "evidence-fd57ed29ad92": {
+      "channel": "label_reuse",
+      "created_at": "2026-04-02T00:19:02+00:00",
+      "evidence_id": "evidence-fd57ed29ad92",
+      "media_kind": null,
+      "media_path": null,
+      "observation_value": 0.4,
+      "owner_node_id": "loc-21843234970f",
+      "owner_node_type": "location",
+      "sensor_fingerprint": null,
+      "source_kind": "user",
+      "value_text": "Point five"
     }
   },
   "graph_edges": {},
   "label_nodes": {
+    "label-204df45fae45": {
+      "aliases": [
+        "Point five"
+      ],
+      "canonical_name": "Middle of the numbers",
+      "created_at": "2026-04-02T00:18:53+00:00",
+      "label_id": "label-204df45fae45",
+      "provenance_detail": "manual_label",
+      "provenance_source": "user",
+      "rename_history": [
+        {
+          "new_name": "Middle of the numbers",
+          "old_name": "Point five",
+          "renamed_at": "2026-04-02T00:19:25+00:00"
+        }
+      ],
+      "updated_at": "2026-04-02T00:19:25+00:00"
+    },
     "label-5e2a5eeb3c68": {
       "aliases": [],
       "canonical_name": "Point one",
@@ -99,18 +299,88 @@
       "provenance_source": "user",
       "rename_history": [],
       "updated_at": "2026-03-29T09:53:53+00:00"
+    },
+    "label-7b1b52c4c4a8": {
+      "aliases": [],
+      "canonical_name": "bedroom",
+      "created_at": "2026-03-29T13:15:26+00:00",
+      "label_id": "label-7b1b52c4c4a8",
+      "provenance_detail": "sensor_label",
+      "provenance_source": "user",
+      "rename_history": [],
+      "updated_at": "2026-03-29T13:15:26+00:00"
+    },
+    "label-b9d6b46ed6f3": {
+      "aliases": [],
+      "canonical_name": "hallway",
+      "created_at": "2026-03-29T13:16:10+00:00",
+      "label_id": "label-b9d6b46ed6f3",
+      "provenance_detail": "sensor_label",
+      "provenance_source": "user",
+      "rename_history": [],
+      "updated_at": "2026-03-29T13:16:10+00:00"
     }
   },
   "location_models": {
+    "loc-21843234970f": {
+      "correct_count": 1,
+      "first_seen_at": "2026-04-02T00:18:53+00:00",
+      "guess_count": 2,
+      "incorrect_count": 1,
+      "label_id": "label-204df45fae45",
+      "last_seen_at": "2026-04-02T00:19:40+00:00",
+      "location_id": "loc-21843234970f",
+      "observation_count": 4,
+      "observation_values": [
+        0.5,
+        0.4,
+        0.45,
+        0.4
+      ],
+      "prototype": 0.4375,
+      "provenance_detail": "scalar_observation",
+      "provenance_source": "user",
+      "spread": 0.04145780987944249
+    },
+    "loc-32cb8e9d5d60": {
+      "correct_count": 0,
+      "first_seen_at": "2026-03-29T13:16:10+00:00",
+      "guess_count": 0,
+      "incorrect_count": 0,
+      "label_id": "label-b9d6b46ed6f3",
+      "last_seen_at": "2026-03-29T13:16:10+00:00",
+      "location_id": "loc-32cb8e9d5d60",
+      "observation_count": 0,
+      "observation_values": [],
+      "prototype": null,
+      "provenance_detail": "sensor_path",
+      "provenance_source": "sensor",
+      "spread": 0.0
+    },
+    "loc-9e54812dff4c": {
+      "correct_count": 0,
+      "first_seen_at": "2026-03-29T13:15:26+00:00",
+      "guess_count": 0,
+      "incorrect_count": 0,
+      "label_id": "label-7b1b52c4c4a8",
+      "last_seen_at": "2026-03-29T13:15:49+00:00",
+      "location_id": "loc-9e54812dff4c",
+      "observation_count": 0,
+      "observation_values": [],
+      "prototype": null,
+      "provenance_detail": "sensor_path",
+      "provenance_source": "sensor",
+      "spread": 0.0
+    },
     "loc-a3cd3f221828": {
-      "correct_count": 4,
+      "correct_count": 5,
       "first_seen_at": "2026-03-29T09:53:53+00:00",
-      "guess_count": 4,
+      "guess_count": 5,
       "incorrect_count": 0,
       "label_id": "label-5e2a5eeb3c68",
-      "last_seen_at": "2026-03-29T11:48:51+00:00",
+      "last_seen_at": "2026-04-02T00:56:15+00:00",
       "location_id": "loc-a3cd3f221828",
-      "observation_count": 8,
+      "observation_count": 9,
       "observation_values": [
         0.1,
         0.15,
@@ -119,15 +389,39 @@
         0.1,
         0.1,
         0.3,
-        0.28
+        0.28,
+        0.1
       ],
-      "prototype": 0.16625,
+      "prototype": 0.1588888888888889,
       "provenance_detail": "migrated_scalar_observation",
       "provenance_source": "user",
-      "spread": 0.0788887666274483
+      "spread": 0.07723620976436785
     }
   },
   "schema_version": 5,
-  "sensor_bindings": {},
-  "updated_at": "2026-03-29T11:48:51+00:00"
+  "sensor_bindings": {
+    "sensor-23ea87535896": {
+      "created_at": "2026-03-29T13:15:26+00:00",
+      "fingerprint": "f22594b1d027a87b71adfa3d96bb8441c044f19e60f7b73f9f4a422df8dd78e0",
+      "location_id": "loc-9e54812dff4c",
+      "media_kind": "image",
+      "media_path": "/Users/zacharysturman/Downloads/PORTFOLIO/Technology/ToT/media/core_images/phase04_bedroom_scene.png",
+      "provenance_detail": "sensor_path",
+      "provenance_source": "sensor",
+      "sensor_id": "sensor-23ea87535896",
+      "updated_at": "2026-03-29T13:15:49+00:00"
+    },
+    "sensor-cdeda2d4a973": {
+      "created_at": "2026-03-29T13:16:10+00:00",
+      "fingerprint": "2b68d0ae6e58e8e371922e7b2f4dbfd9ee91309cd3434ee4a98a44642399da4f",
+      "location_id": "loc-32cb8e9d5d60",
+      "media_kind": "image",
+      "media_path": "/Users/zacharysturman/Downloads/PORTFOLIO/Technology/ToT/media/core_images/phase04_hallway_scene.png",
+      "provenance_detail": "sensor_path",
+      "provenance_source": "sensor",
+      "sensor_id": "sensor-cdeda2d4a973",
+      "updated_at": "2026-03-29T13:16:10+00:00"
+    }
+  },
+  "updated_at": "2026-04-02T00:56:15+00:00"
 }

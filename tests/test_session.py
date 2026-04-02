@@ -129,14 +129,19 @@ class SessionControllerTests(unittest.TestCase):
         lab = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "lab")
         self.assertEqual(1, lab["correct_count"])
 
-    def test_verbose_mode_shows_phase4_banner_and_summary(self) -> None:
+    def test_verbose_mode_shows_phase8_banner_and_summary(self) -> None:
         _, output = self._run(["0.25", "kitchen", "quit"], quiet=False)
 
         combined = "\n".join(output.lines)
         self.assertIn("Tree-of-Thought Location Agent", combined)
-        self.assertIn("Phase 4", combined)
+        self.assertIn("Phase 8", combined)
         self.assertIn("rename", combined)
         self.assertIn("alias", combined)
+        self.assertIn("contain", combined)
+        self.assertIn("overlap", combined)
+        self.assertIn("concept", combined)
+        self.assertIn("relate", combined)
+        self.assertIn("adapter", combined.lower())
         self.assertIn("Session Summary", combined)
         self.assertIn("goodbye", output.lines)
 
@@ -233,6 +238,26 @@ class SessionControllerTests(unittest.TestCase):
         self.assertIn("kitchen|galley|label-", combined)
         self.assertIn("0.250000", combined)
 
+    def test_inspect_command_appends_relation_fields_in_quiet_mode(self) -> None:
+        _, output = self._run(
+            [
+                "0.10",
+                "house",
+                "0.20",
+                "bedroom",
+                "contain",
+                "house",
+                "bedroom",
+                "inspect",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("house||label-", combined)
+        self.assertIn("|bedroom,house||house|", combined)
+        self.assertIn("||house|", combined)
+
     def test_merge_event_logged(self) -> None:
         self._run(["0.25", "kitchen", "0.253", "yes", "quit"])
 
@@ -321,6 +346,192 @@ class SessionControllerTests(unittest.TestCase):
         sensor_events = [event for event in events if event.get("observation_kind") == "sensor"]
         self.assertGreaterEqual(len(sensor_events), 2)
 
+    def test_sensor_learn_multiple_images_to_different_locations(self) -> None:
+        img_b = Path(self.temporary_directory.name) / "lobby.png"
+        img_b.write_bytes(b"lobby-image-data")
+
+        _, output = self._run(
+            [
+                f"sense {self.sensor_path}",
+                "bedroom",
+                f"sense {img_b}",
+                "lobby",
+                f"sense {self.sensor_path}",
+                "yes",
+                f"sense {img_b}",
+                "yes",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertEqual(combined.count("sensor: new image"), 2)
+        self.assertEqual(combined.count("sensor: recognized image"), 2)
+
+        reloaded = MemoryStore(self.memory_path)
+        for img, expected in [(self.sensor_path, "bedroom"), (img_b, "lobby")]:
+            result = reloaded.lookup_sensor_binding(
+                SensorObservation.from_path(str(img)).fingerprint
+            )
+            self.assertIsNotNone(result)
+            _, _, label = result
+            self.assertEqual(expected, label.canonical_name)
+
+    def test_sensor_wrong_guess_correction(self) -> None:
+        _, output = self._run(
+            [
+                f"sense {self.sensor_path}",
+                "bedroom",
+                f"sense {self.sensor_path}",
+                "no",
+                "office",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("sensor: new image", combined)
+        self.assertIn("sensor: recognized image", combined)
+        self.assertIn("guess: bedroom (confidence=1.00)", combined)
+
+        reloaded = MemoryStore(self.memory_path)
+        result = reloaded.lookup_sensor_binding(
+            SensorObservation.from_path(str(self.sensor_path)).fingerprint
+        )
+        self.assertIsNotNone(result)
+        _, _, label = result
+        self.assertEqual("office", label.canonical_name)
+
+        events = self._parse_events()
+        correction_event = next(
+            (e for e in events if e.get("mutation_kind") == "sensor_binding_updated"),
+            None,
+        )
+        self.assertIsNotNone(correction_event)
+
+    def test_sensor_unknown_image_prompts_label(self) -> None:
+        feeder, output = self._run(
+            [
+                f"sense {self.sensor_path}",
+                "bedroom",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("sensor: new image", combined)
+        self.assertIn("label: ", feeder.prompts)
+
+    def test_sensor_multiple_images_same_location(self) -> None:
+        img_b = Path(self.temporary_directory.name) / "bedroom2.jpg"
+        img_b.write_bytes(b"second-bedroom-image")
+
+        _, output = self._run(
+            [
+                f"sense {self.sensor_path}",
+                "bedroom",
+                f"sense {img_b}",
+                "bedroom",
+                f"sense {self.sensor_path}",
+                "yes",
+                f"sense {img_b}",
+                "yes",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("guess: bedroom (confidence=1.00)", combined)
+
+        reloaded = MemoryStore(self.memory_path)
+        for img in [self.sensor_path, img_b]:
+            result = reloaded.lookup_sensor_binding(
+                SensorObservation.from_path(str(img)).fingerprint
+            )
+            self.assertIsNotNone(result)
+            _, _, label = result
+            self.assertEqual("bedroom", label.canonical_name)
+
+    def test_contain_command_adds_relation_and_logs(self) -> None:
+        feeder, output = self._run(
+            [
+                "0.10",
+                "house",
+                "0.20",
+                "bedroom",
+                "contain",
+                "house",
+                "bedroom",
+                "quit",
+            ]
+        )
+
+        reloaded = MemoryStore(self.memory_path)
+        bedroom = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "bedroom")
+        self.assertEqual(["house"], bedroom["contained_by"])
+        self.assertIn("contains: house -> bedroom", output.lines)
+        self.assertIn("contain parent: ", feeder.prompts)
+        self.assertIn("contain child: ", feeder.prompts)
+
+        events = self._parse_events()
+        relation_event = next(
+            event
+            for event in events
+            if event["event_type"] == "memory_mutation"
+            and event["mutation_kind"] == "location_containment_added"
+        )
+        self.assertEqual("contains", relation_event["new_record"]["relation_kind"])
+
+    def test_overlap_command_deduplicates_reverse_pair(self) -> None:
+        _, output = self._run(
+            [
+                "0.10",
+                "hallway",
+                "0.20",
+                "doorway",
+                "overlap",
+                "hallway",
+                "doorway",
+                "overlap",
+                "doorway",
+                "hallway",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("overlaps: hallway <-> doorway", combined)
+        self.assertIn("unchanged overlaps: doorway <-> hallway", combined)
+        reloaded = MemoryStore(self.memory_path)
+        hallway = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "hallway")
+        self.assertEqual(["doorway"], hallway["overlaps"])
+
+    def test_relation_commands_treat_self_links_as_noops(self) -> None:
+        _, output = self._run(["0.10", "house", "contain", "house", "house", "quit"])
+
+        self.assertIn("unchanged contains: house -> house", "\n".join(output.lines))
+        reloaded = MemoryStore(self.memory_path)
+        house = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "house")
+        self.assertEqual([], house["contains"])
+
+    def test_active_context_is_emitted_after_nested_recognition(self) -> None:
+        _, output = self._run(
+            [
+                "0.10",
+                "house",
+                "0.20",
+                "bedroom",
+                "contain",
+                "house",
+                "bedroom",
+                "0.20",
+                "yes",
+                "quit",
+            ]
+        )
+
+        self.assertIn("active-context: bedroom, house", "\n".join(output.lines))
+
     def test_rename_and_alias_conflicts_reprompt(self) -> None:
         feeder, output = self._run(
             [
@@ -372,6 +583,209 @@ class SessionControllerTests(unittest.TestCase):
             if event["event_type"] == "memory_mutation" and event["mutation_kind"] == "memory_reset"
         ]
         self.assertEqual(1, len(reset_events))
+
+    def test_context_command_shows_active_context(self) -> None:
+        feeder, output = self._run(
+            [
+                "0.10",
+                "house",
+                "0.20",
+                "bedroom",
+                "contain",
+                "house",
+                "bedroom",
+                "context",
+                "bedroom",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("active-context: bedroom, house", combined)
+        self.assertIn("context for: ", "\n".join(feeder.prompts))
+        events = self._parse_events()
+        context_events = [
+            event for event in events if event["event_type"] == "query" and "context_command" in (event.get("notes") or "")
+        ]
+        self.assertEqual(1, len(context_events))
+        self.assertIn("bedroom", context_events[0]["notes"])
+
+    def test_context_command_no_relations(self) -> None:
+        _, output = self._run(["0.10", "house", "context", "house", "quit"])
+
+        self.assertIn("active-context: house", "\n".join(output.lines))
+
+    def test_context_command_unknown_location(self) -> None:
+        feeder, output = self._run(
+            ["0.10", "house", "context", "nowhere", "house", "quit"]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("label not found: nowhere", combined)
+        self.assertIn("active-context: house", combined)
+
+    def test_contain_cycle_is_rejected_in_session(self) -> None:
+        _, output = self._run(
+            [
+                "0.10",
+                "house",
+                "0.20",
+                "bedroom",
+                "contain",
+                "house",
+                "bedroom",
+                "contain",
+                "bedroom",
+                "house",
+                "quit",
+            ]
+        )
+
+        combined = "\n".join(output.lines)
+        self.assertIn("contains: house -> bedroom", combined)
+        self.assertIn("cycle rejected:", combined)
+
+    def test_concept_command_creates_concept(self) -> None:
+        _, output = self._run(
+            [
+                "concept",
+                "warmth",
+                "primitive",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn("concept: warmth (primitive)", combined)
+        reloaded = MemoryStore(self.memory_path)
+        node = reloaded.lookup_concept_by_name("warmth")
+        self.assertIsNotNone(node)
+        self.assertEqual("primitive", node.concept_kind)
+
+    def test_concept_command_rejects_invalid_kind(self) -> None:
+        _, output = self._run(
+            [
+                "concept",
+                "warmth",
+                "bogus",
+                "primitive",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn("invalid kind: bogus", combined)
+        self.assertIn("concept: warmth (primitive)", combined)
+
+    def test_concept_command_existing_concept(self) -> None:
+        _, output = self._run(
+            [
+                "concept",
+                "warmth",
+                "primitive",
+                "concept",
+                "warmth",
+                "composite",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn("concept: warmth (primitive)", combined)
+        self.assertIn("concept exists: warmth", combined)
+
+    def test_relate_command_links_concepts(self) -> None:
+        _, output = self._run(
+            [
+                "concept",
+                "warmth",
+                "primitive",
+                "concept",
+                "comfort",
+                "composite",
+                "relate",
+                "warmth",
+                "comfort",
+                "supports",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn("linked: warmth -supports-> comfort", combined)
+        reloaded = MemoryStore(self.memory_path)
+        rels = reloaded.concept_relations("warmth")
+        self.assertIn("comfort", rels["supports"])
+
+    def test_relate_command_rejects_invalid_kind(self) -> None:
+        _, output = self._run(
+            [
+                "concept",
+                "warmth",
+                "primitive",
+                "concept",
+                "comfort",
+                "composite",
+                "relate",
+                "warmth",
+                "comfort",
+                "contains",
+                "supports",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn("invalid relation: contains", combined)
+        self.assertIn("linked: warmth -supports-> comfort", combined)
+
+    def test_relate_command_unknown_concept_retries(self) -> None:
+        _, output = self._run(
+            [
+                "concept",
+                "warmth",
+                "primitive",
+                "concept",
+                "comfort",
+                "composite",
+                "relate",
+                "nonexistent",
+                "warmth",
+                "comfort",
+                "supports",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn('concept not found: nonexistent', combined)
+        self.assertIn("linked: warmth -supports-> comfort", combined)
+
+    def test_concepts_command_shows_all(self) -> None:
+        _, output = self._run(
+            [
+                "concept",
+                "warmth",
+                "primitive",
+                "concept",
+                "comfort",
+                "composite",
+                "relate",
+                "warmth",
+                "comfort",
+                "supports",
+                "concepts",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn("comfort(composite)", combined)
+        self.assertIn("warmth(primitive)", combined)
+        self.assertIn("-supports-> comfort", combined)
+
+    def test_concepts_command_empty(self) -> None:
+        _, output = self._run(
+            [
+                "concepts",
+                "quit",
+            ]
+        )
+        combined = "\n".join(output.lines)
+        self.assertIn("concepts: (none)", combined)
 
 
 if __name__ == "__main__":
