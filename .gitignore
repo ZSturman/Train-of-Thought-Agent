@@ -332,3 +332,4 @@ docker-compose.override.yml
 # artifacts/
 # screenshots/
 # exports/
+assets_for_notion
