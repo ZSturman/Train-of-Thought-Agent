@@ -1,28 +1,54 @@
 # TODO
 
-## Immediate Tasks
+The active phases on each track. When a phase completes, its checklist is moved into `CHANGELOG.md` under a dated heading and replaced here with the next phase's items.
 
-- Implement `ObservationBundle` dataclass with all Perception Architecture Contract fields
-- Define `SensorAdapter` protocol (base class) that sensor modules must implement
-- Create `ImageAdapter` wrapping existing `SensorObservation` into `ObservationBundle` shape
-- Add bundle field validation hooks and inspection tooling
-- Add Phase 8 tests: bundle validation, adapter normalization invariants, two-adapter shape tests
-- Create `phase_08_observation_bundle_contract.json` scenario manifest
-- Decide on schema v7 bump (bundle metadata persistence)
+## Active Research Phase: Phase 9 — Region Descriptors & Primitive Feature Extraction
 
-## Tasks Needed Before Phase Completion
+(Pending — kicks off when you give the move-on instruction for the research track. Spec lives in `PROJECT_ROADMAP.md` under "Phase 9".)
 
-- Verify `sense` command routes through adapter → bundle → learning path
-- Verify two mock adapters produce the same bundle shape
-- Verify bundle provenance and raw references survive normalization
-- Run full regression suite (153+ tests must still pass)
+## Active Release Phase: R3 — HTTP API & Hosted Storage
 
-## Next Phase Tasks
+**Goal:** Expose the SDK over HTTP and add a hosted memory backend (Firestore) so the upcoming web app (R4) can run against a remote instance.
 
-- Draft the Phase 11 `ExperienceFrame` contract and inspection rules before any frame capture code path is added
-- Draft the Phase 13 `MemoryUnit` schema and mixed-storage migration plan before the first generic memory-writing phase starts
+### Tasks
 
-## Deferred Improvements
+- [ ] Define minimal REST surface (FastAPI) on top of `Agent`
+  - [ ] `POST /learn` (scalar + sensor variants)
+  - [ ] `POST /recognize` (scalar + sensor variants)
+  - [ ] `POST /confirm`, `POST /correct`
+  - [ ] `GET /inspect`, `POST /reset`
+  - [ ] OpenAPI spec checked into the repo
+- [ ] Concrete `FirestoreStore` implementing `MemoryStorage` (replaces the R2 stub in `_internal/firestore_store.py`); migrate to top-level public path once stable
+- [ ] Auth + multi-tenant scoping
+  - [ ] Decide on auth model (API key vs. OIDC); document in `docs/api.md`
+  - [ ] Per-tenant memory namespacing in storage layer
+- [ ] Async surface on `Agent` (or async wrapper class) for the API workers
+- [ ] Deployment artifacts: Dockerfile, container CI build, sample Cloud Run / Fly.io manifest
+- [ ] `tests/test_http_api.py` end-to-end against an in-memory store
+- [ ] `tests/test_firestore_store.py` against the Firestore emulator
+- [ ] Promote `tot-agent` to PyPI (non-rc) once R3 ships
+
+### Dependencies / Blockers
+
+- R2 complete (✅).
+- Decision: async-first `Agent` vs. sync `Agent` + thin async wrapper. Recommendation: thin async wrapper to keep the SDK usable from synchronous notebooks.
+
+### Acceptance Criteria
+
+- `curl` against the running service drives teach → recognize → inspect.
+- A web client can authenticate and read/write its own memory namespace.
+- Firestore store passes the same Protocol contract tests as `LocalJSONStore`.
+- Coverage ≥ 80%; mypy clean; CI matrix green.
+
+### Risks / Open Questions
+
+- Schema-evolution story for hosted memory (cannot rely on file-based migrations).
+- Cost / quota model for Firestore reads when `inspect` returns the full memory.
+- Whether to support both Firestore and SQLite/Postgres backends from day one.
+
+---
+
+## Deferred Improvements (Research Track)
 
 - Add richer inspection tooling for rename history details
 - Consider richer span models for non-convex locations instead of relying only on inclusive min/max bounds

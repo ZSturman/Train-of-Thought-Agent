@@ -1,5 +1,22 @@
 {
   "current_phase": 8,
+  "release_phase": "R3",
+  "release_phase_status_map": {
+    "R1": "completed",
+    "R2": "completed",
+    "R3": "in_progress",
+    "R4": "pending",
+    "R5": "pending",
+    "R6": "pending",
+    "R7": "pending",
+    "R8": "pending",
+    "R9": "pending",
+    "R10": "pending",
+    "R11": "pending",
+    "R12": "pending",
+    "R13": "pending"
+  },
+  "release_completed_phases": ["R1", "R2"],
   "phase_status_map": {
     "1": "completed",
     "2": "completed",
@@ -69,6 +86,9 @@
     "Phase 7 was accepted on 2026-04-02 with 153 automated tests. Exact-fingerprint sensor preview formalized as temporary baseline with SHA256 bindings, provenance_source=sensor, and explicit Phase 8 replacement notes.",
     "The automated regression suite now passes with 153 unittest cases including Phase 7 sensor binding, multi-image recognition, wrong-guess correction, and temporary-preview documentation coverage.",
     "Phase 8 implementation added ObservationBundle (13-field frozen dataclass), RegionDescriptor, SensorAdapter ABC, ImageAdapter, schema v6→v7 migration, bundle persistence (store_bundle/get_bundle/bind_sensor_bundle), adapter-routed sense flow, and extended EventLogger with bundle_id/adapter_id fields.",
-    "The automated regression suite now passes with 177 unittest cases including Phase 8 bundle validation, adapter contract, cross-adapter shape, bundle persistence, and schema migration coverage."
+    "The automated regression suite now passes with 177 unittest cases including Phase 8 bundle validation, adapter contract, cross-adapter shape, bundle persistence, and schema migration coverage.",
+    "On 2026-04-29 the project added a parallel Release Track (R1–R13) that runs alongside the research roadmap; v1.0 ships when Research Phase 10 is accepted AND R1–R12 complete. See RELEASE_ROADMAP.md.",
+    "Release Phase R1 (Productization Foundation) was completed on 2026-04-29: src/ layout, pyproject.toml with tot console script, Apache-2.0 LICENSE, SECURITY.md, CODE_OF_CONDUCT.md, GitHub Actions CI matrix (Linux/macOS/Windows × Python 3.10/3.11/3.12) with ruff + mypy (advisory) + pytest + coverage ≥ 80%, CodeQL, Dependabot, TestPyPI publish workflow, pre-commit, issue/PR templates. Package version bumped to 0.6.0; 177 tests still pass; coverage 82%; sdist+wheel pass twine check.",
+    "Release Phase R2 (Core SDK Extraction & Public API) was completed on 2026-04-30: package version bumped to 0.7.0rc1; public surface frozen in location_agent.__all__; new Agent facade (learn_scalar/recognize_scalar/confirm_scalar/correct_scalar/sense/learn_sensor/inspect/reset) plus LearnResult / RecognitionResult dataclasses; MemoryStorage runtime-checkable Protocol with LocalJSONStore alias; _internal/ package with FirestoreStore stub for R3 and _deprecation helper; sensor-adapter plugin discovery via tot.adapters entry-point group with built-in image adapter registered in pyproject.toml; examples/example-adapter/ reference package; published JSON Schemas (observation_bundle, runtime_memory.v7); docs/api.md (SemVer policy) and docs/plugins.md (threat model); README SDK Quickstart; mypy --strict gating in CI (continue-on-error removed). Tests grew from 177 to 197 (test_public_api, test_agent_facade, test_plugin_discovery, test_schemas)."
   ]
 }

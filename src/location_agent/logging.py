@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from location_agent.models import (
+    SCHEMA_VERSION,
     LabelNode,
     LocationModel,
     LocationRecord,
     NormalizedObservation,
-    SCHEMA_VERSION,
     SensorObservation,
     utc_now_iso,
 )

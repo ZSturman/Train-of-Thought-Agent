@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
 from location_agent.logging import EventLogger
-from location_agent.memory import LabelConflictError, LabelLookupError, MemoryStore
+from location_agent.memory import LabelConflictError, MemoryStore
 from location_agent.models import (
-    ImageAdapter,
-    NormalizedObservation,
-    ObservationBundle,
-    ObservationError,
-    SensorObservation,
-    SensorObservationError,
     VALID_CONCEPT_KINDS,
     VALID_RELATION_RULES,
+    ImageAdapter,
+    NormalizedObservation,
+    ObservationError,
+    SensorObservationError,
     normalize_label_name,
 )
 
@@ -225,10 +223,7 @@ class SessionController:
         if self.quiet:
             return f"uncertain: {label} (confidence={confidence:.2f})"
         pct = confidence * 100
-        return (
-            f'I\'m not very sure, but my best guess is: "{label}" '
-            f"(confidence: {pct:.0f}%)"
-        )
+        return f'I\'m not very sure, but my best guess is: "{label}" (confidence: {pct:.0f}%)'
 
     def _msg_near_collision(self, existing_label: str, existing_proto: float) -> str:
         if self.quiet:
@@ -407,7 +402,9 @@ class SessionController:
         return f'Invalid concept kind "{kind}". Valid kinds: {valid}.'
 
     def _msg_invalid_relation_kind(self, kind: str) -> str:
-        concept_kinds = sorted(k for k, v in VALID_RELATION_RULES.items() if ("concept", "concept") in v)
+        concept_kinds = sorted(
+            k for k, v in VALID_RELATION_RULES.items() if ("concept", "concept") in v
+        )
         valid = ", ".join(concept_kinds)
         if self.quiet:
             return f"invalid relation: {kind}. valid: {valid}"
@@ -616,7 +613,9 @@ class SessionController:
                 break
             self.output_func(self._msg_concept_not_found(target))
 
-        concept_kinds = sorted(k for k, v in VALID_RELATION_RULES.items() if ("concept", "concept") in v)
+        concept_kinds = sorted(
+            k for k, v in VALID_RELATION_RULES.items() if ("concept", "concept") in v
+        )
         while True:
             kind = self._prompt_text(self._relate_kind_prompt).strip().lower()
             if kind in concept_kinds:
@@ -645,7 +644,14 @@ class SessionController:
         lines: list[str] = []
         if not self.quiet:
             lines.append("=== Concepts ===")
-        _REL_KEYS = ("supports", "supported_by", "composes", "composed_by", "supports_hypothesis", "hypothesis_supported_by")
+        _REL_KEYS = (
+            "supports",
+            "supported_by",
+            "composes",
+            "composed_by",
+            "supports_hypothesis",
+            "hypothesis_supported_by",
+        )
         for c in concepts:
             name = c["concept_name"]
             kind_tag = f" ({c['concept_kind']})" if not self.quiet else f"({c['concept_kind']})"
@@ -757,8 +763,8 @@ class SessionController:
         recognized = self.store.lookup_sensor_binding(sensor_observation.fingerprint)
 
         if recognized is not None:
-            _, model, label = recognized
-            guessed_label = label.canonical_name
+            _, model, label_node = recognized
+            guessed_label = label_node.canonical_name
             self.output_func(self._msg_sensor_known(sensor_observation.media_kind))
             self.output_func(self._msg_guess(guessed_label, 1.0))
             self.event_logger.log(
@@ -1013,7 +1019,8 @@ class SessionController:
             )
             if feedback == 1:
                 if self.store.is_outlier(model, observation.value):
-                    self.output_func(self._msg_outlier_warning(guessed_label, model.prototype))
+                    proto_value = model.prototype if model.prototype is not None else 0.0
+                    self.output_func(self._msg_outlier_warning(guessed_label, proto_value))
                     merge_ok = self._prompt_feedback()
                     if merge_ok != 1:
                         self._correct_guesses += 1
@@ -1190,7 +1197,9 @@ class SessionController:
                         continue
 
                 if self.store.is_outlier(existing_model, observation.value):
-                    prototype = existing_model.prototype if existing_model.prototype is not None else 0.0
+                    prototype = (
+                        existing_model.prototype if existing_model.prototype is not None else 0.0
+                    )
                     self.output_func(self._msg_outlier_warning(normalized_label, prototype))
                     if self._prompt_feedback() != 1:
                         label = self._prompt_label()
@@ -1221,19 +1230,22 @@ class SessionController:
             collision = self.store.find_near_collision(observation)
             if collision is not None:
                 collision_snapshot = self.store.snapshot_location(collision)
+                collision_proto = collision.prototype if collision.prototype is not None else 0.0
                 self.output_func(
                     self._msg_near_collision(
                         collision_snapshot["canonical_name"],
-                        collision.prototype,
+                        collision_proto,
                     )
                 )
                 proceed = self._prompt_feedback()
                 if proceed != 1:
-                    self.output_func("Skipped — observation not learned." if not self.quiet else "skipped")
+                    self.output_func(
+                        "Skipped — observation not learned." if not self.quiet else "skipped"
+                    )
                     return
 
             try:
-                old_model, new_model = self.store.learn_location(observation, normalized_label)
+                _legacy_old, new_model = self.store.learn_location(observation, normalized_label)
             except LabelConflictError as exc:
                 self.output_func(self._msg_label_conflict(str(exc)))
                 label = self._prompt_label()
@@ -1250,7 +1262,7 @@ class SessionController:
             observation=observation,
             confidence=confidence,
             mutation_kind="model_created",
-            old_record=old_model,
+            old_record=None,
             new_record=self.store.snapshot_location(new_model),
             notes="new_location_learned",
         )

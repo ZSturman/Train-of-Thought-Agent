@@ -6,7 +6,12 @@ import unittest
 from pathlib import Path
 
 from location_agent.memory import LabelConflictError, LabelLookupError, MemoryStore
-from location_agent.models import NormalizedObservation, SCHEMA_VERSION, SensorObservation, VALID_CONCEPT_KINDS
+from location_agent.models import (
+    SCHEMA_VERSION,
+    VALID_CONCEPT_KINDS,
+    NormalizedObservation,
+    SensorObservation,
+)
 
 
 class MemoryStoreTests(unittest.TestCase):
@@ -431,8 +436,12 @@ class LocationGraphTests(unittest.TestCase):
         store.learn_location(NormalizedObservation.parse("0.10"), "hallway")
         store.learn_location(NormalizedObservation.parse("0.20"), "doorway")
 
-        first_edge, first_created = store.link_locations("hallway", "doorway", relation_kind="overlaps")
-        second_edge, second_created = store.link_locations("doorway", "hallway", relation_kind="overlaps")
+        first_edge, first_created = store.link_locations(
+            "hallway", "doorway", relation_kind="overlaps"
+        )
+        second_edge, second_created = store.link_locations(
+            "doorway", "hallway", relation_kind="overlaps"
+        )
 
         self.assertTrue(first_created)
         self.assertFalse(second_created)
@@ -578,7 +587,9 @@ class SensorBindingTests(unittest.TestCase):
 
         reloaded = MemoryStore(self.memory_path)
         for img, expected_label in [(img_a, "kitchen"), (img_b, "bedroom"), (img_c, "lobby")]:
-            result = reloaded.lookup_sensor_binding(SensorObservation.from_path(str(img)).fingerprint)
+            result = reloaded.lookup_sensor_binding(
+                SensorObservation.from_path(str(img)).fingerprint
+            )
             self.assertIsNotNone(result, f"{expected_label} binding missing after reload")
             _, _, label = result
             self.assertEqual(expected_label, label.canonical_name)
@@ -704,8 +715,12 @@ class ConceptNodeTests(unittest.TestCase):
         store = MemoryStore(self.memory_path)
         store.create_concept("warmth", concept_kind="primitive")
         store.create_concept("comfort", concept_kind="composite")
-        first_edge, first_created = store.link_concepts("warmth", "comfort", relation_kind="supports")
-        second_edge, second_created = store.link_concepts("warmth", "comfort", relation_kind="supports")
+        first_edge, first_created = store.link_concepts(
+            "warmth", "comfort", relation_kind="supports"
+        )
+        second_edge, second_created = store.link_concepts(
+            "warmth", "comfort", relation_kind="supports"
+        )
         self.assertTrue(first_created)
         self.assertFalse(second_created)
         self.assertEqual(first_edge.edge_id, second_edge.edge_id)
