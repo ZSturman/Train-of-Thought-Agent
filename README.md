@@ -122,6 +122,24 @@ During an interactive session, use `sense /absolute/path/to/file` to route a loc
 
 For fuller setup notes, memory isolation tips, and command examples, see [`docs/SETUP.md`](docs/SETUP.md).
 
+## SDK Quickstart
+
+`location_agent` also ships as a programmatic SDK. The `Agent` facade is the recommended entry point for embedding the learning loop in another application:
+
+```python
+from location_agent import Agent
+
+agent = Agent()                             # writes to ./runtime/
+agent.learn_scalar(0.25, "kitchen")
+result = agent.recognize_scalar(0.253)
+print(result.is_known, result.label, result.confidence)
+# True kitchen 0.94
+
+snapshot = agent.inspect()                  # JSON-serializable
+```
+
+Public names are listed in [`docs/api.md`](docs/api.md) and follow SemVer. Sensor adapters can be added via Python entry points — see [`docs/plugins.md`](docs/plugins.md).
+
 ## Technical Notes
 
 The README keeps the technical surface brief so the project remains readable from the outside. These supporting files hold the deeper details:

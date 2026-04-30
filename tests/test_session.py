@@ -63,7 +63,9 @@ class SessionControllerTests(unittest.TestCase):
         _, output = self._run(["0.25", "kitchen", "0.250000", "1", "quit"])
 
         reloaded = MemoryStore(self.memory_path)
-        kitchen = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen")
+        kitchen = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen"
+        )
         self.assertAlmostEqual(kitchen["prototype"], 0.25)
         self.assertEqual(2, kitchen["observation_count"])
         self.assertEqual(1, kitchen["guess_count"])
@@ -76,11 +78,15 @@ class SessionControllerTests(unittest.TestCase):
         self.assertIn("goodbye", output.lines)
 
         events = self._parse_events()
-        mutation_kinds = [event["mutation_kind"] for event in events if event["event_type"] == "memory_mutation"]
+        mutation_kinds = [
+            event["mutation_kind"] for event in events if event["event_type"] == "memory_mutation"
+        ]
         self.assertIn("model_created", mutation_kinds)
         self.assertIn("merge_observation", mutation_kinds)
 
-    def test_invalid_inputs_and_wrong_guess_trigger_reprompt_and_alias_preserving_correction(self) -> None:
+    def test_invalid_inputs_and_wrong_guess_trigger_reprompt_and_alias_preserving_correction(
+        self,
+    ) -> None:
         _, output = self._run(
             [
                 "oops",
@@ -98,7 +104,9 @@ class SessionControllerTests(unittest.TestCase):
         )
 
         reloaded = MemoryStore(self.memory_path)
-        hallway = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "hallway")
+        hallway = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "hallway"
+        )
         self.assertAlmostEqual(hallway["prototype"], 0.75)
         self.assertEqual(2, hallway["observation_count"])
         self.assertEqual(1, hallway["guess_count"])
@@ -116,7 +124,8 @@ class SessionControllerTests(unittest.TestCase):
         correction_event = next(
             event
             for event in events
-            if event["event_type"] == "memory_mutation" and event["mutation_kind"] == "label_correction"
+            if event["event_type"] == "memory_mutation"
+            and event["mutation_kind"] == "label_correction"
         )
         self.assertEqual("office", correction_event["old_record"]["canonical_name"])
         self.assertEqual("hallway", correction_event["new_record"]["canonical_name"])
@@ -151,7 +160,9 @@ class SessionControllerTests(unittest.TestCase):
         guess_lines = [line for line in output.lines if "kitchen" in line and "confidence" in line]
         self.assertTrue(len(guess_lines) >= 1)
         reloaded = MemoryStore(self.memory_path)
-        kitchen = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen")
+        kitchen = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen"
+        )
         self.assertEqual(1, kitchen["correct_count"])
 
     def test_far_observation_triggers_unknown(self) -> None:
@@ -159,7 +170,9 @@ class SessionControllerTests(unittest.TestCase):
 
         self.assertIn("where am i", output.lines)
         reloaded = MemoryStore(self.memory_path)
-        lobby = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "lobby")
+        lobby = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "lobby"
+        )
         self.assertIsNotNone(lobby)
 
     def test_uncertain_guess_rejected_then_new_label(self) -> None:
@@ -188,7 +201,9 @@ class SessionControllerTests(unittest.TestCase):
         self._run(["0.25", "kitchen", "0.253", "yes", "quit"])
 
         reloaded = MemoryStore(self.memory_path)
-        kitchen = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen")
+        kitchen = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen"
+        )
         self.assertAlmostEqual(kitchen["prototype"], (0.25 + 0.253) / 2, places=5)
         self.assertEqual(2, kitchen["observation_count"])
         self.assertGreater(kitchen["spread"], 0.0)
@@ -197,7 +212,9 @@ class SessionControllerTests(unittest.TestCase):
         self._run(["0.25", "kitchen", "0.253", "yes", "0.248", "yes", "quit"])
 
         reloaded = MemoryStore(self.memory_path)
-        kitchen = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen")
+        kitchen = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen"
+        )
         expected_proto = (0.25 + 0.253 + 0.248) / 3
         self.assertAlmostEqual(kitchen["prototype"], expected_proto, places=5)
         self.assertEqual(3, kitchen["observation_count"])
@@ -208,17 +225,23 @@ class SessionControllerTests(unittest.TestCase):
         combined = "\n".join(output.lines)
         self.assertNotIn("label conflict", combined)
         reloaded = MemoryStore(self.memory_path)
-        point_one = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "Point one")
+        point_one = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "Point one"
+        )
         self.assertEqual(3, point_one["observation_count"])
         self.assertAlmostEqual((0.1 + 0.15 + 0.2) / 3, point_one["prototype"], places=5)
 
     def test_learned_span_is_inferred_by_default(self) -> None:
-        _, output = self._run(["0.1", "Point one", "0.3", "Point one", "yes", "0.28", "yes", "quit"])
+        _, output = self._run(
+            ["0.1", "Point one", "0.3", "Point one", "yes", "0.28", "yes", "quit"]
+        )
 
         combined = "\n".join(output.lines)
         self.assertIn("guess: Point one", combined)
         reloaded = MemoryStore(self.memory_path)
-        point_one = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "Point one")
+        point_one = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "Point one"
+        )
         self.assertEqual(3, point_one["observation_count"])
 
     def test_inspect_command_shows_labels_aliases_and_ids(self) -> None:
@@ -265,7 +288,8 @@ class SessionControllerTests(unittest.TestCase):
         merge_event = next(
             event
             for event in events
-            if event["event_type"] == "memory_mutation" and event["mutation_kind"] == "merge_observation"
+            if event["event_type"] == "memory_mutation"
+            and event["mutation_kind"] == "merge_observation"
         )
         self.assertEqual(1, merge_event["old_record"]["observation_count"])
         self.assertEqual(2, merge_event["new_record"]["observation_count"])
@@ -275,7 +299,9 @@ class SessionControllerTests(unittest.TestCase):
         feeder, output = self._run(["0.25", "kitchen", "rename", "kitchen", "break room", "quit"])
 
         reloaded = MemoryStore(self.memory_path)
-        renamed = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "break room")
+        renamed = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "break room"
+        )
         self.assertIn("kitchen", renamed["aliases"])
         self.assertIn("renamed: kitchen -> break room", output.lines)
         self.assertIn("rename from: ", feeder.prompts)
@@ -285,7 +311,8 @@ class SessionControllerTests(unittest.TestCase):
         rename_event = next(
             event
             for event in events
-            if event["event_type"] == "memory_mutation" and event["mutation_kind"] == "label_renamed"
+            if event["event_type"] == "memory_mutation"
+            and event["mutation_kind"] == "label_renamed"
         )
         self.assertEqual("kitchen", rename_event["old_record"]["canonical_name"])
         self.assertEqual("break room", rename_event["new_record"]["canonical_name"])
@@ -294,7 +321,9 @@ class SessionControllerTests(unittest.TestCase):
         feeder, output = self._run(["0.25", "kitchen", "alias", "kitchen", "galley", "quit"])
 
         reloaded = MemoryStore(self.memory_path)
-        kitchen = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen")
+        kitchen = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "kitchen"
+        )
         self.assertEqual(["galley"], kitchen["aliases"])
         self.assertIn("alias-added: galley -> kitchen", output.lines)
         self.assertIn("alias for: ", feeder.prompts)
@@ -304,7 +333,8 @@ class SessionControllerTests(unittest.TestCase):
         alias_event = next(
             event
             for event in events
-            if event["event_type"] == "memory_mutation" and event["mutation_kind"] == "label_alias_added"
+            if event["event_type"] == "memory_mutation"
+            and event["mutation_kind"] == "label_alias_added"
         )
         self.assertEqual([], alias_event["old_record"]["aliases"])
         self.assertEqual(["galley"], alias_event["new_record"]["aliases"])
@@ -467,7 +497,9 @@ class SessionControllerTests(unittest.TestCase):
         )
 
         reloaded = MemoryStore(self.memory_path)
-        bedroom = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "bedroom")
+        bedroom = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "bedroom"
+        )
         self.assertEqual(["house"], bedroom["contained_by"])
         self.assertIn("contains: house -> bedroom", output.lines)
         self.assertIn("contain parent: ", feeder.prompts)
@@ -503,7 +535,9 @@ class SessionControllerTests(unittest.TestCase):
         self.assertIn("overlaps: hallway <-> doorway", combined)
         self.assertIn("unchanged overlaps: doorway <-> hallway", combined)
         reloaded = MemoryStore(self.memory_path)
-        hallway = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "hallway")
+        hallway = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "hallway"
+        )
         self.assertEqual(["doorway"], hallway["overlaps"])
 
     def test_relation_commands_treat_self_links_as_noops(self) -> None:
@@ -511,7 +545,9 @@ class SessionControllerTests(unittest.TestCase):
 
         self.assertIn("unchanged contains: house -> house", "\n".join(output.lines))
         reloaded = MemoryStore(self.memory_path)
-        house = next(model for model in reloaded.inspect_models() if model["canonical_name"] == "house")
+        house = next(
+            model for model in reloaded.inspect_models() if model["canonical_name"] == "house"
+        )
         self.assertEqual([], house["contains"])
 
     def test_active_context_is_emitted_after_nested_recognition(self) -> None:
@@ -557,7 +593,9 @@ class SessionControllerTests(unittest.TestCase):
         self.assertGreaterEqual(feeder.prompts.count("alias name: "), 2)
 
     def test_reset_command_confirmed_clears_memory(self) -> None:
-        _, output = self._run(["0.25", "kitchen", "0.90", "lobby", "reset", "yes", "inspect", "quit"])
+        _, output = self._run(
+            ["0.25", "kitchen", "0.90", "lobby", "reset", "yes", "inspect", "quit"]
+        )
 
         combined = "\n".join(output.lines)
         self.assertIn("reset: 2 models cleared", combined)
@@ -605,7 +643,9 @@ class SessionControllerTests(unittest.TestCase):
         self.assertIn("context for: ", "\n".join(feeder.prompts))
         events = self._parse_events()
         context_events = [
-            event for event in events if event["event_type"] == "query" and "context_command" in (event.get("notes") or "")
+            event
+            for event in events
+            if event["event_type"] == "query" and "context_command" in (event.get("notes") or "")
         ]
         self.assertEqual(1, len(context_events))
         self.assertIn("bedroom", context_events[0]["notes"])
@@ -616,9 +656,7 @@ class SessionControllerTests(unittest.TestCase):
         self.assertIn("active-context: house", "\n".join(output.lines))
 
     def test_context_command_unknown_location(self) -> None:
-        feeder, output = self._run(
-            ["0.10", "house", "context", "nowhere", "house", "quit"]
-        )
+        feeder, output = self._run(["0.10", "house", "context", "nowhere", "house", "quit"])
 
         combined = "\n".join(output.lines)
         self.assertIn("label not found: nowhere", combined)
@@ -752,7 +790,7 @@ class SessionControllerTests(unittest.TestCase):
             ]
         )
         combined = "\n".join(output.lines)
-        self.assertIn('concept not found: nonexistent', combined)
+        self.assertIn("concept not found: nonexistent", combined)
         self.assertIn("linked: warmth -supports-> comfort", combined)
 
     def test_concepts_command_shows_all(self) -> None:

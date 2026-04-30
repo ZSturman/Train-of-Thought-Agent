@@ -4,9 +4,10 @@ import abc
 import hashlib
 import math
 import uuid
-from pathlib import Path
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 SCHEMA_VERSION = 7
 NORMALIZATION_DECIMALS = 6
@@ -39,6 +40,8 @@ def validate_relation(edge_or_kind: str, source_type: str, target_type: str) -> 
             f"({source_type!r}, {target_type!r}); "
             f"allowed: {sorted(allowed)}"
         )
+
+
 ALLOWED_PROVENANCE_SOURCES = frozenset({"user", "sensor"})
 
 
@@ -141,14 +144,16 @@ class NormalizedObservation:
     key: str
 
     @classmethod
-    def parse(cls, raw_input: str) -> "NormalizedObservation":
+    def parse(cls, raw_input: str) -> NormalizedObservation:
         stripped = raw_input.strip()
         if not stripped:
             raise ObservationError("invalid observation: enter a number between 0.0 and 1.0")
         try:
             value = float(stripped)
         except ValueError as exc:
-            raise ObservationError("invalid observation: enter a number between 0.0 and 1.0") from exc
+            raise ObservationError(
+                "invalid observation: enter a number between 0.0 and 1.0"
+            ) from exc
         if not 0.0 <= value <= 1.0:
             raise ObservationError("invalid observation: enter a number between 0.0 and 1.0")
         return cls(raw_input=raw_input, value=value, key=f"{value:.{NORMALIZATION_DECIMALS}f}")
@@ -170,7 +175,7 @@ class SensorObservation:
     file_size: int
 
     @classmethod
-    def from_path(cls, raw_path: str) -> "SensorObservation":
+    def from_path(cls, raw_path: str) -> SensorObservation:
         normalized = raw_path.strip()
         if not normalized:
             raise SensorObservationError("sensor path cannot be empty")
@@ -217,11 +222,11 @@ class RegionDescriptor:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "RegionDescriptor":
+    def from_dict(cls, payload: dict[str, Any]) -> RegionDescriptor:
         return cls(
             region_id=str(payload["region_id"]),
             label=None if payload.get("label") is None else str(payload["label"]),
-            geometry=payload.get("geometry"),  # type: ignore[arg-type]
+            geometry=payload.get("geometry"),
             salience=float(payload.get("salience", 0.0)),
         )
 
@@ -278,21 +283,25 @@ class ObservationBundle:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "ObservationBundle":
+    def from_dict(cls, payload: dict[str, Any]) -> ObservationBundle:
         raw_regions = payload.get("regions", [])
         return cls(
             bundle_id=str(payload["bundle_id"]),
             timestamp=str(payload["timestamp"]),
             adapter_id=str(payload["adapter_id"]),
             modality=str(payload["modality"]),
-            reference_frame=None if payload.get("reference_frame") is None else str(payload["reference_frame"]),
-            pose_estimate=payload.get("pose_estimate"),  # type: ignore[arg-type]
-            motion_estimate=payload.get("motion_estimate"),  # type: ignore[arg-type]
-            sensor_origin=None if payload.get("sensor_origin") is None else str(payload["sensor_origin"]),
-            regions=tuple(RegionDescriptor.from_dict(r) for r in raw_regions),  # type: ignore[union-attr]
-            primitive_features=tuple(str(f) for f in payload.get("primitive_features", [])),  # type: ignore[union-attr]
-            concept_candidates=tuple(str(c) for c in payload.get("concept_candidates", [])),  # type: ignore[union-attr]
-            raw_refs=tuple(str(r) for r in payload.get("raw_refs", [])),  # type: ignore[union-attr]
+            reference_frame=None
+            if payload.get("reference_frame") is None
+            else str(payload["reference_frame"]),
+            pose_estimate=payload.get("pose_estimate"),
+            motion_estimate=payload.get("motion_estimate"),
+            sensor_origin=None
+            if payload.get("sensor_origin") is None
+            else str(payload["sensor_origin"]),
+            regions=tuple(RegionDescriptor.from_dict(r) for r in raw_regions),
+            primitive_features=tuple(str(f) for f in payload.get("primitive_features", [])),
+            concept_candidates=tuple(str(c) for c in payload.get("concept_candidates", [])),
+            raw_refs=tuple(str(r) for r in payload.get("raw_refs", [])),
             provenance=str(payload.get("provenance", "sensor")),
         )
 
@@ -386,7 +395,7 @@ class LocationRecord:
     last_seen_at: str
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "LocationRecord":
+    def from_dict(cls, payload: dict[str, Any]) -> LocationRecord:
         return cls(
             location_id=str(payload["location_id"]),
             observation_key=str(payload["observation_key"]),
@@ -425,7 +434,7 @@ class RenameRecord:
     renamed_at: str
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "RenameRecord":
+    def from_dict(cls, payload: dict[str, Any]) -> RenameRecord:
         return cls(
             old_name=str(payload["old_name"]),
             new_name=str(payload["new_name"]),
@@ -452,7 +461,7 @@ class LabelNode:
     provenance_detail: str = "manual_label"
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "LabelNode":
+    def from_dict(cls, payload: dict[str, Any]) -> LabelNode:
         raw_history = payload.get("rename_history", [])
         return cls(
             label_id=str(payload["label_id"]),
@@ -479,7 +488,7 @@ class LabelNode:
             "provenance_detail": self.provenance_detail,
         }
 
-    def with_alias(self, alias: str) -> "LabelNode":
+    def with_alias(self, alias: str) -> LabelNode:
         alias_name = normalize_label_name(alias)
         alias_key = alias_name.casefold()
         if alias_key == self.canonical_name.casefold():
@@ -493,7 +502,7 @@ class LabelNode:
             updated_at=utc_now_iso(),
         )
 
-    def with_renamed_canonical(self, new_name: str) -> "LabelNode":
+    def with_renamed_canonical(self, new_name: str) -> LabelNode:
         normalized = normalize_label_name(new_name)
         if normalized.casefold() == self.canonical_name.casefold():
             return self
@@ -509,7 +518,8 @@ class LabelNode:
             self,
             canonical_name=normalized,
             aliases=remaining_aliases,
-            rename_history=self.rename_history + (
+            rename_history=self.rename_history
+            + (
                 RenameRecord(
                     old_name=self.canonical_name,
                     new_name=normalized,
@@ -543,9 +553,9 @@ class LocationModel:
     provenance_detail: str = "scalar_observation"
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "LocationModel":
+    def from_dict(cls, payload: dict[str, Any]) -> LocationModel:
         raw_values = payload.get("observation_values", [])
-        values = tuple(float(v) for v in raw_values)  # type: ignore[union-attr]
+        values = tuple(float(v) for v in raw_values)
         raw_prototype = payload.get("prototype")
         return cls(
             location_id=str(payload["location_id"]),
@@ -582,7 +592,7 @@ class LocationModel:
             "provenance_detail": self.provenance_detail,
         }
 
-    def with_merged_observation(self, value: float) -> "LocationModel":
+    def with_merged_observation(self, value: float) -> LocationModel:
         new_values = self.observation_values + (value,)
         new_count = len(new_values)
         new_prototype = sum(new_values) / len(new_values)
@@ -596,7 +606,7 @@ class LocationModel:
             last_seen_at=utc_now_iso(),
         )
 
-    def with_last_seen(self) -> "LocationModel":
+    def with_last_seen(self) -> LocationModel:
         return replace(self, last_seen_at=utc_now_iso())
 
     def observation_bounds(self) -> tuple[float | None, float | None]:
@@ -613,7 +623,7 @@ class LocationModel:
         return distance_to_interval(value, lower, upper)
 
     @classmethod
-    def from_record(cls, record: LocationRecord, *, label_id: str = "") -> "LocationModel":
+    def from_record(cls, record: LocationRecord, *, label_id: str = "") -> LocationModel:
         return cls(
             location_id=record.location_id,
             label_id=label_id,
@@ -638,7 +648,7 @@ class LocationModel:
         label_id: str,
         provenance_source: str,
         provenance_detail: str,
-    ) -> "LocationModel":
+    ) -> LocationModel:
         timestamp = utc_now_iso()
         return cls(
             location_id=location_id,
@@ -669,7 +679,7 @@ class ConceptNode:
     provenance_detail: str
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "ConceptNode":
+    def from_dict(cls, payload: dict[str, Any]) -> ConceptNode:
         kind = str(payload.get("concept_kind", "named"))
         if kind not in VALID_CONCEPT_KINDS:
             raise ValueError(f"invalid concept_kind: {kind!r}")
@@ -716,7 +726,7 @@ class GraphEdge:
     provenance_detail: str
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "GraphEdge":
+    def from_dict(cls, payload: dict[str, Any]) -> GraphEdge:
         return cls(
             edge_id=str(payload["edge_id"]),
             source_node_id=str(payload["source_node_id"]),
@@ -767,7 +777,7 @@ class SensorBinding:
     provenance_detail: str
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "SensorBinding":
+    def from_dict(cls, payload: dict[str, Any]) -> SensorBinding:
         return cls(
             sensor_id=str(payload["sensor_id"]),
             fingerprint=str(payload["fingerprint"]),
@@ -795,7 +805,7 @@ class SensorBinding:
             "provenance_detail": self.provenance_detail,
         }
 
-    def with_location(self, location_id: str, media_path: str) -> "SensorBinding":
+    def with_location(self, location_id: str, media_path: str) -> SensorBinding:
         return replace(
             self,
             location_id=location_id,
@@ -819,7 +829,7 @@ class EvidenceRecord:
     created_at: str
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "EvidenceRecord":
+    def from_dict(cls, payload: dict[str, Any]) -> EvidenceRecord:
         raw_observation_value = payload.get("observation_value")
         return cls(
             evidence_id=str(payload["evidence_id"]),

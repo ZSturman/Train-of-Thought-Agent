@@ -7,31 +7,27 @@ from pathlib import Path
 from typing import Any
 
 from location_agent.models import (
-    ConceptNode,
     DEFAULT_GUESS_THRESHOLD,
     DEFAULT_OUTLIER_FACTOR,
     DEFAULT_TOLERANCE,
+    SCHEMA_VERSION,
+    VALID_CONCEPT_KINDS,
+    ConceptNode,
     EvidenceRecord,
     GraphEdge,
-    ImageAdapter,
     LabelNameError,
     LabelNode,
     LocationModel,
     LocationRecord,
     NormalizedObservation,
     ObservationBundle,
-    RegionDescriptor,
     RenameRecord,
-    SCHEMA_VERSION,
-    SensorAdapter,
     SensorBinding,
     SensorObservation,
-    VALID_CONCEPT_KINDS,
     distance_to_confidence,
     label_lookup_key,
     normalize_label_name,
     reinforced_confidence,
-    scalar_distance,
     utc_now_iso,
     validate_provenance_source,
     validate_relation,
@@ -167,6 +163,7 @@ class MemoryStore:
         return results
 
     def snapshot_location(self, model: LocationModel | str) -> dict[str, Any]:
+        current: LocationModel | None
         if isinstance(model, LocationModel):
             current = model
         else:
@@ -725,19 +722,21 @@ class MemoryStore:
             relations[key] = sorted(set(relations[key]), key=str.casefold)
         return relations
 
-    def inspect_concepts(self) -> list[dict[str, object]]:
-        result: list[dict[str, object]] = []
+    def inspect_concepts(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
         for raw_concept in self._data["concept_nodes"].values():
             concept = ConceptNode.from_dict(raw_concept)
             rels = self.concept_relations(concept)
-            result.append({
-                "concept_id": concept.concept_id,
-                "concept_name": concept.concept_name,
-                "concept_kind": concept.concept_kind,
-                "aliases": list(concept.aliases),
-                "provenance_source": concept.provenance_source,
-                **rels,
-            })
+            result.append(
+                {
+                    "concept_id": concept.concept_id,
+                    "concept_name": concept.concept_name,
+                    "concept_kind": concept.concept_kind,
+                    "aliases": list(concept.aliases),
+                    "provenance_source": concept.provenance_source,
+                    **rels,
+                }
+            )
         result.sort(key=lambda c: str(c["concept_name"]).casefold())
         return result
 
@@ -765,7 +764,9 @@ class MemoryStore:
             self._store_location_model(target_model)
 
         existing_binding = self.lookup_sensor_binding(sensor_observation.fingerprint)
-        old_snapshot = None if existing_binding is None else self.snapshot_location(existing_binding[1])
+        old_snapshot = (
+            None if existing_binding is None else self.snapshot_location(existing_binding[1])
+        )
         if existing_binding is None:
             timestamp = utc_now_iso()
             binding = SensorBinding(
@@ -890,7 +891,9 @@ class MemoryStore:
                 raw_name = str(raw_model.get("label", "")).strip()
                 if not raw_name:
                     raw_name = f"unnamed-{raw_model['location_id']}"
-                canonical_name, rename_history = self._disambiguate_migrated_name(raw_name, used_name_keys)
+                canonical_name, rename_history = self._disambiguate_migrated_name(
+                    raw_name, used_name_keys
+                )
                 label_id = f"label-{uuid.uuid4().hex[:12]}"
                 created_at = str(raw_model.get("first_seen_at", payload["created_at"]))
                 updated_at = str(raw_model.get("last_seen_at", created_at))

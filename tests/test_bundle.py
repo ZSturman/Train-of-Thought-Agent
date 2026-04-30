@@ -6,10 +6,10 @@ from pathlib import Path
 
 from location_agent.memory import MemoryStore
 from location_agent.models import (
+    SCHEMA_VERSION,
     ImageAdapter,
     ObservationBundle,
     RegionDescriptor,
-    SCHEMA_VERSION,
     SensorAdapter,
     SensorObservation,
     SensorObservationError,
@@ -221,6 +221,7 @@ class MockAudioAdapter(SensorAdapter):
 
     def observe(self, raw_input: str) -> ObservationBundle:
         import uuid
+
         return ObservationBundle(
             bundle_id=f"bundle-{uuid.uuid4().hex[:12]}",
             timestamp=utc_now_iso(),
@@ -327,6 +328,7 @@ class BundlePersistenceTests(unittest.TestCase):
     def test_v6_to_v7_migration(self) -> None:
         """A v6 memory file gains observation_bundles on load."""
         import json
+
         v6_payload = {
             "schema_version": 6,
             "created_at": utc_now_iso(),

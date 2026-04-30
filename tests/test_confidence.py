@@ -8,8 +8,8 @@ from location_agent.memory import MemoryStore
 from location_agent.models import (
     DEFAULT_TOLERANCE,
     NormalizedObservation,
-    distance_to_interval,
     distance_to_confidence,
+    distance_to_interval,
     reinforced_confidence,
     scalar_distance,
 )

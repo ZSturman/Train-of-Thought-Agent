@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ZSturman/Train-of-Thought-Agent/schemas/runtime_memory.v7.schema.json",
+  "title": "RuntimeMemoryV7",
+  "description": "On-disk shape of `runtime/location_memory.json` for schema_version 7. Top-level structural contract; nested record bodies are intentionally permissive to allow forward-compatible field additions within the same major schema.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "confidence_policy",
+    "location_models",
+    "label_nodes",
+    "concept_nodes",
+    "graph_edges",
+    "sensor_bindings",
+    "evidence_records",
+    "observation_bundles"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 7
+    },
+    "confidence_policy": {
+      "type": "object",
+      "required": ["guess_threshold", "tolerance"],
+      "additionalProperties": true,
+      "properties": {
+        "guess_threshold": { "type": "number" },
+        "tolerance": { "type": "number" },
+        "outlier_factor": { "type": "number" }
+      }
+    },
+    "location_models": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "label_nodes": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "concept_nodes": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "graph_edges": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "sensor_bindings": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "evidence_records": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "observation_bundles": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    }
+  }
+}

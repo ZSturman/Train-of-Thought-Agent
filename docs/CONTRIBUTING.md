@@ -10,16 +10,28 @@ The project files currently use the public title "Tree-of-Thought Location Agent
 
 ## Local Workflow
 
-1. Read [`../CURRENT_PHASE.md`](../CURRENT_PHASE.md) to understand the accepted current phase and the next target.
-2. Make a focused change.
-3. Run the full test suite:
+1. Read [`../CURRENT_PHASE.md`](../CURRENT_PHASE.md) to understand the accepted current research phase and [`../CURRENT_RELEASE_PHASE.md`](../CURRENT_RELEASE_PHASE.md) for the active release-track phase.
+2. Set up the environment once:
 
 ```bash
-python3 -B -m unittest discover -s tests -v
+python3 -m venv .venv
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+pre-commit install
 ```
 
-4. Update docs when behavior, commands, schema, media fixtures, or validation expectations change.
-5. Keep runtime behavior grounded in explicit user input or direct sensor input.
+3. Make a focused change.
+4. Run the full check suite:
+
+```bash
+ruff check .
+ruff format --check .
+mypy            # advisory until R2
+pytest --cov=location_agent
+```
+
+5. Update docs when behavior, commands, schema, media fixtures, or validation expectations change.
+6. Keep runtime behavior grounded in explicit user input or direct sensor input.
 
 ## Documentation Expectations
 

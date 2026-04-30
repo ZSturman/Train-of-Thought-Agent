@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ZSturman/Train-of-Thought-Agent/schemas/observation_bundle.schema.json",
+  "title": "ObservationBundle",
+  "description": "Modality-neutral transformed observation emitted by every SensorAdapter. Stable contract for storage and routing across modalities.",
+  "type": "object",
+  "required": [
+    "bundle_id",
+    "timestamp",
+    "adapter_id",
+    "modality",
+    "regions",
+    "primitive_features",
+    "concept_candidates",
+    "raw_refs",
+    "provenance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "bundle_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "minLength": 1 },
+    "adapter_id": { "type": "string", "minLength": 1 },
+    "modality": { "type": "string", "minLength": 1 },
+    "reference_frame": { "type": ["string", "null"] },
+    "pose_estimate": {
+      "type": ["object", "null"],
+      "additionalProperties": { "type": "number" }
+    },
+    "motion_estimate": {
+      "type": ["object", "null"],
+      "additionalProperties": { "type": "number" }
+    },
+    "sensor_origin": { "type": ["string", "null"] },
+    "regions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/RegionDescriptor" }
+    },
+    "primitive_features": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "concept_candidates": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "raw_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "provenance": {
+      "type": "string",
+      "enum": ["sensor", "user"]
+    }
+  },
+  "$defs": {
+    "RegionDescriptor": {
+      "type": "object",
+      "required": ["region_id"],
+      "additionalProperties": false,
+      "properties": {
+        "region_id": { "type": "string", "minLength": 1 },
+        "label": { "type": ["string", "null"] },
+        "geometry": {
+          "type": ["object", "null"],
+          "additionalProperties": { "type": "number" }
+        },
+        "salience": { "type": "number" }
+      }
+    }
+  }
+}

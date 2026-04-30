@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from location_agent import __version__
 from location_agent.logging import EventLogger
 from location_agent.memory import MemoryStore
 from location_agent.session import SessionController
@@ -10,9 +11,16 @@ from location_agent.session import SessionController
 
 def main() -> None:
     parser = argparse.ArgumentParser(
+        prog="tot",
         description="Tree-of-Thought Location Agent — an interactive learning agent "
         "that associates grayscale observations and sensor-path inputs with "
         "nested, inspectable location context.",
+    )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"tot-agent {__version__}",
     )
     parser.add_argument(
         "-q",

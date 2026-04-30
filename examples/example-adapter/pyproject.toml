@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "example-adapter"
+version = "0.1.0"
+description = "Reference sensor adapter for the location_agent SDK."
+requires-python = ">=3.10"
+dependencies = ["tot-agent>=0.7.0rc1"]
+
+[project.entry-points."tot.adapters"]
+echo = "example_adapter:EchoAdapter"
+
+[tool.hatch.build.targets.wheel]
+packages = ["example_adapter"]

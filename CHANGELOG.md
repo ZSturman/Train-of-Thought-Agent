@@ -1,5 +1,34 @@
 # Changelog
 
+## Release Phase R2 - Core SDK Extraction & Public API (Completed 2026-04-30)
+
+- Bumped package version to `0.7.0rc1` and locked the public surface in `location_agent.__all__`: `Agent`, `LearnResult`, `RecognitionResult`, `MemoryStorage`, `MemoryStore`, `LocalJSONStore`, `EventLogger`, `SensorAdapter`, `ImageAdapter`, `ObservationBundle`, `RegionDescriptor`, `load_adapters`, `SessionController`, exception classes (`ObservationError`, `LabelNameError`, `SensorObservationError`, `LabelConflictError`, `LabelLookupError`), and `__version__`.
+- Added `Agent` facade in `src/location_agent/agent.py` wrapping `MemoryStore` + `EventLogger` + adapter discovery; exposes `learn_scalar`, `recognize_scalar`, `confirm_scalar`, `correct_scalar`, `sense`, `learn_sensor`, `inspect`, `reset` plus frozen `LearnResult` / `RecognitionResult` dataclasses.
+- Added `MemoryStorage` `typing.Protocol` (runtime-checkable) in `src/location_agent/storage.py`; `LocalJSONStore` is the public alias for the concrete `MemoryStore`.
+- Added `_internal/` package with `FirestoreStore` stub (R3) and `_deprecation.deprecated()` helper.
+- Added sensor-adapter plugin discovery in `src/location_agent/plugins.py` (`load_adapters()`) backed by the `tot.adapters` entry-point group; registered the built-in `image = "location_agent.models:ImageAdapter"` in `pyproject.toml`.
+- Added `examples/example-adapter/` reference package demonstrating third-party adapter registration.
+- Published JSON Schemas under `schemas/`: `observation_bundle.schema.json` and `runtime_memory.v7.schema.json`. New `tests/test_schemas.py` validates a live-built bundle and a live runtime memory snapshot.
+- Cleared all 35 mypy errors. CI now gates on `mypy --strict src/location_agent` (removed `continue-on-error: true`).
+- Added `tests/test_public_api.py` (asserts `__all__` shape, importability, docstrings, runtime-checkable Protocol), `tests/test_agent_facade.py` (teach → recognize → inspect via `from location_agent import Agent`), `tests/test_plugin_discovery.py` (entry-point discovery with happy path, non-adapter rejection, load failure handling, empty group).
+- Added `docs/api.md` (SemVer policy, public/internal split, `SessionController` carve-out) and `docs/plugins.md` (adapter contract, threat model). Added SDK Quickstart section to `README.md`.
+- Added `jsonschema>=4.21` to `[project.optional-dependencies] dev`.
+- Verified: 197 tests pass; `mypy --strict src/location_agent` clean across 13 source files; coverage ≥ 80%.
+
+## Release Phase R1 - Productization Foundation (Completed 2026-04-29)
+
+- Adopted `src/` layout: `location_agent/` → `src/location_agent/`.
+- Authored `pyproject.toml` (PEP 621) with hatchling backend, `tot` console script, and `[dev]` extras (pytest, pytest-cov, ruff, mypy, pre-commit, pip-audit, build).
+- Added `__main__.py` so `python -m location_agent` invokes the CLI.
+- Added `--version` / `-V` flag to the CLI.
+- Added Apache-2.0 `LICENSE`, `SECURITY.md` (private vulnerability reporting), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `.editorconfig`, `.pre-commit-config.yaml`.
+- Added GitHub Actions workflows: `ci.yml` (ruff, ruff format, mypy advisory, pytest matrix on Ubuntu/macOS/Windows × Python 3.10/3.11/3.12 with coverage gate ≥ 80%, pip-audit), `codeql.yml` (weekly Python analysis), `publish-testpypi.yml` (manual / `v*-rc*` tag triggered, OIDC trusted publishing).
+- Added `.github/dependabot.yml` for weekly pip + GitHub Actions dependency updates.
+- Added issue templates (bug, feature) and PR template referencing both research and release phase tracks.
+- Configured `ruff` (E/W/F/I/B/UP/SIM/RUF select; ignored RUF005, RUF059 pending R2 cleanup) and `mypy` (advisory in R1, gating in R2).
+- Verified: `pip install -e \".[dev]\"` succeeds; `tot --version` prints `tot-agent 0.6.0`; full 177-test suite passes; coverage = 82%; `ruff check .` and `ruff format --check .` clean; `python -m build` produces sdist + wheel that pass `twine check`.
+- Bumped package version to `0.6.0`.
+
 ## Phase 8 - Modality-Neutral Observation Bundle
 
 - Accepted Phase 7 after validating exact-fingerprint sensor preview with 153 passing tests and manual quiet-mode smoke run.

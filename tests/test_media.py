@@ -211,24 +211,30 @@ class Phase4MediaSmokeTests(unittest.TestCase):
 
         reloaded = MemoryStore(self.memory_path)
         self.assertIsNotNone(
-            reloaded.lookup_sensor_binding(SensorObservation.from_path(str(break_room_path)).fingerprint)
+            reloaded.lookup_sensor_binding(
+                SensorObservation.from_path(str(break_room_path)).fingerprint
+            )
         )
         self.assertIsNotNone(
-            reloaded.lookup_sensor_binding(SensorObservation.from_path(str(unknown_path)).fingerprint)
+            reloaded.lookup_sensor_binding(
+                SensorObservation.from_path(str(unknown_path)).fingerprint
+            )
         )
 
 
 class Phase5MediaManifestTests(unittest.TestCase):
-    def test_phase5_nested_context_scenario_reuses_registered_room_assets_and_house_fixture(self) -> None:
+    def test_phase5_nested_context_scenario_reuses_registered_room_assets_and_house_fixture(
+        self,
+    ) -> None:
         assets = {entry["asset_id"]: entry for entry in _load_catalog()}
         scenario = next(
-            item for item in _load_scenarios() if item["scenario_id"] == "phase_05_nested_context_walk"
+            item
+            for item in _load_scenarios()
+            if item["scenario_id"] == "phase_05_nested_context_walk"
         )
 
         referenced_asset_ids = {
-            str(asset_id)
-            for step in scenario["steps"]
-            for asset_id in step["asset_ids"]
+            str(asset_id) for step in scenario["steps"] for asset_id in step["asset_ids"]
         }
 
         self.assertEqual(5, int(scenario["phase"]))
