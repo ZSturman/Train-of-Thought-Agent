@@ -6,6 +6,39 @@ The active phases on each track. When a phase completes, its checklist is moved 
 
 (Pending — kicks off when you give the move-on instruction for the research track. Spec lives in `PROJECT_ROADMAP.md` under "Phase 9".)
 
+## Blocking: Finish v0.7.0-rc1 TestPyPI publish
+
+**Status:** Tag `v0.7.0-rc1` was pushed and the publish workflow ran, but the OIDC token exchange to TestPyPI failed with `invalid-publisher` because TestPyPI has no trusted publisher configured for this repo yet. Build + `twine check` succeeded; only the upload step failed.
+
+**Steps to complete (manual, then re-run workflow):**
+
+1. Create a TestPyPI account at https://test.pypi.org/account/register/ (separate from PyPI; verify email).
+2. Visit https://test.pypi.org/manage/account/publishing/ and add a **pending publisher** with these exact values (must match the OIDC claims from the failed run):
+   - PyPI Project Name: `tot-agent`
+   - Owner: `ZSturman`
+   - Repository name: `Train-of-Thought-Agent`
+   - Workflow name: `publish-testpypi.yml`
+   - Environment name: `testpypi`
+3. Re-run the publish workflow against tag `v0.7.0-rc1`:
+   - Web UI: https://github.com/ZSturman/Train-of-Thought-Agent/actions/workflows/publish-testpypi.yml → **Run workflow** → ref `v0.7.0-rc1`
+   - Or: `gh workflow run publish-testpypi.yml --ref v0.7.0-rc1`
+4. Confirm the run goes green and the release appears at https://test.pypi.org/project/tot-agent/0.7.0rc1/
+5. Smoke-test in a clean venv:
+   ```sh
+   python3 -m venv /tmp/tot-smoke/.venv
+   /tmp/tot-smoke/.venv/bin/pip install -i https://test.pypi.org/simple/ \
+     --extra-index-url https://pypi.org/simple/ tot-agent==0.7.0rc1
+   /tmp/tot-smoke/.venv/bin/tot --help
+   /tmp/tot-smoke/.venv/bin/python -c "from location_agent import Agent, __version__; print(__version__)"
+   ```
+6. Once verified, this section is removed and R3 work resumes below.
+
+**Notes:**
+- The repo also needs a GitHub Environment named `testpypi` (Settings → Environments). The workflow declares `environment: name: testpypi`; if the env doesn't exist GitHub will create it on first run, but you may want to add branch/tag protection rules later.
+- A separate trusted publisher must be configured on production PyPI before R3 ships (different account, different page). Out of scope until R3.
+
+---
+
 ## Active Release Phase: R3 — HTTP API & Hosted Storage
 
 **Goal:** Expose the SDK over HTTP and add a hosted memory backend (Firestore) so the upcoming web app (R4) can run against a remote instance.
