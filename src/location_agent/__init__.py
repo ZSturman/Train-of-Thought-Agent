@@ -15,7 +15,7 @@ Quickstart::
     print(result.label, result.confidence)
 """
 
-from location_agent.agent import Agent, LearnResult, RecognitionResult
+from location_agent.agent import Agent, AsyncAgent, LearnResult, RecognitionResult
 from location_agent.logging import EventLogger
 from location_agent.memory import LabelConflictError, LabelLookupError, MemoryStore
 from location_agent.models import (
@@ -36,6 +36,7 @@ LocalJSONStore = MemoryStore
 
 __all__ = [
     "Agent",
+    "AsyncAgent",
     "EventLogger",
     "ImageAdapter",
     "LabelConflictError",
@@ -55,4 +56,4 @@ __all__ = [
     "__version__",
     "load_adapters",
 ]
-__version__ = "0.7.0rc1"
+__version__ = "0.7.0"
