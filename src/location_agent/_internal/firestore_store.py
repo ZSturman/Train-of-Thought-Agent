@@ -1,105 +1,141 @@
-"""Stub Firestore-backed memory storage.
+"""Firestore-backed MemoryStorage (Release Phase R3).
 
-The concrete implementation lands in Release Phase R3 alongside the hosted
-HTTP API. This stub exists so that the public SDK can import a
-``FirestoreStore`` symbol and so that the protocol contract can be
-validated at type-check time.
+Requires ``google-cloud-firestore``::
+
+    pip install 'tot-agent[firestore]'
+
+Data is stored as a single Firestore document per tenant at::
+
+    tenants/{tenant_id}/memory/state
+
+The document contains the same JSON structure as the local
+``MemoryStore`` file, so schema migrations run automatically on load.
+Per-tenant isolation is enforced by ``tenant_id``.
+
+A process-local temp file satisfies ``MemoryStore``'s file bookkeeping;
+it is deleted on garbage collection. For multi-process deployments (e.g.
+Cloud Run with concurrency > 1) Firestore is the source of truth — the
+last writer wins, which is acceptable at R3 traffic levels.
 """
 
 from __future__ import annotations
 
+import json
+import os
+import re
+import tempfile
+from pathlib import Path
 from typing import Any
 
-from location_agent.models import (
-    LabelNode,
-    LocationModel,
-    NormalizedObservation,
-    ObservationBundle,
-    SensorBinding,
-    SensorObservation,
-)
+from location_agent.memory import MemoryStore
+
+_TENANT_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
+_FS_COLLECTION = "tenants"
+_FS_MEMORY_DOC = "state"
 
 
-class FirestoreStore:
-    """Placeholder for the Firestore-backed `MemoryStorage` implementation.
+class FirestoreStore(MemoryStore):
+    """Firestore-backed :class:`~location_agent.storage.MemoryStorage`.
 
-    All methods raise ``NotImplementedError``. R3 will provide a working
-    implementation that satisfies the ``MemoryStorage`` protocol.
+    Inherits all business logic from :class:`~location_agent.memory.MemoryStore`.
+    Only the persistence layer changes: mutations are committed to Firestore
+    instead of a local JSON file.
+
+    Parameters
+    ----------
+    tenant_id:
+        Namespace key for this tenant.  Must match ``[a-zA-Z0-9_-]{1,128}``.
+    project_id:
+        GCP project ID. Defaults to Application Default Credentials.
+    credentials:
+        Explicit ``google.auth`` credentials. Defaults to ADC.
+    database:
+        Firestore database ID. Defaults to ``"(default)"``.
+    _client:
+        Inject a pre-built Firestore client (or compatible mock). When
+        supplied, ``project_id``, ``credentials``, and ``database`` are
+        ignored and the ``google-cloud-firestore`` package need not be
+        installed.  Intended for unit tests only.
     """
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        raise NotImplementedError(
-            "FirestoreStore is not yet implemented. It lands in Release Phase R3. "
-            "Use LocalJSONStore for local-first storage in R2."
+    def __init__(
+        self,
+        tenant_id: str,
+        *,
+        project_id: str | None = None,
+        credentials: object | None = None,
+        database: str | None = None,
+        _client: object | None = None,
+    ) -> None:
+        if not _TENANT_RE.match(tenant_id):
+            raise ValueError(
+                "tenant_id must be 1–128 characters matching [a-zA-Z0-9_-], "
+                f"got: {tenant_id!r}"
+            )
+        self._tenant_id = tenant_id
+
+        # _db and _doc_ref are typed Any because google-cloud-firestore is an
+        # optional dependency; mypy cannot resolve the stubs when it is absent.
+        self._db: Any
+        self._doc_ref: Any
+
+        if _client is not None:
+            self._db = _client
+        else:
+            try:
+                from google.cloud import firestore as _fs  # type: ignore[import-not-found]
+            except ImportError as exc:
+                raise ImportError(
+                    "google-cloud-firestore is required for FirestoreStore. "
+                    "Install with: pip install 'tot-agent[firestore]'"
+                ) from exc
+
+            fs_kwargs: dict[str, Any] = {}
+            if project_id is not None:
+                fs_kwargs["project"] = project_id
+            if credentials is not None:
+                fs_kwargs["credentials"] = credentials
+            if database is not None:
+                fs_kwargs["database"] = database
+            self._db = _fs.Client(**fs_kwargs)
+
+        self._doc_ref = (
+            self._db.collection(_FS_COLLECTION)
+            .document(tenant_id)
+            .collection("memory")
+            .document(_FS_MEMORY_DOC)
         )
 
-    @property
-    def guess_threshold(self) -> float:  # pragma: no cover - stub
-        raise NotImplementedError
+        # Temp file: MemoryStore needs a writable path for internal bookkeeping.
+        # We seed it from Firestore so _load_or_initialize() reads the correct data.
+        fd, tmp_str = tempfile.mkstemp(suffix=".json", prefix=f"tot-{tenant_id[:16]}-")
+        os.close(fd)
+        self._tmp_path = Path(tmp_str)
+
+        snap = self._doc_ref.get()
+        if snap.exists:
+            payload = snap.to_dict()
+            if payload:
+                self._tmp_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        # super().__init__ calls _load_or_initialize() (reads temp file, runs
+        # migrations) then may call _write_payload() (overridden below, which
+        # syncs the migrated state back to Firestore).
+        super().__init__(self._tmp_path)
 
     @property
-    def tolerance(self) -> float:  # pragma: no cover - stub
-        raise NotImplementedError
+    def tenant_id(self) -> str:
+        return self._tenant_id
 
-    def find_nearest(
-        self, observation: NormalizedObservation
-    ) -> tuple[LocationModel | None, float]:  # pragma: no cover - stub
-        raise NotImplementedError
+    def _write_payload(self, payload: dict[str, Any]) -> None:
+        """Write to Firestore first, then keep the temp file in sync."""
+        self._doc_ref.set(payload)
+        super()._write_payload(payload)
 
-    def lookup_by_id(self, location_id: str) -> LocationModel | None:  # pragma: no cover - stub
-        raise NotImplementedError
+    def __del__(self) -> None:
+        try:
+            if hasattr(self, "_tmp_path"):
+                self._tmp_path.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
 
-    def lookup_by_label_name(
-        self, name: str
-    ) -> tuple[LocationModel, LabelNode] | None:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def lookup_sensor_binding(
-        self, fingerprint: str
-    ) -> tuple[SensorBinding, LocationModel, LabelNode] | None:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def learn_location(
-        self, observation: NormalizedObservation, label: str
-    ) -> tuple[None, LocationModel]:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def record_correct_guess(
-        self,
-        observation: NormalizedObservation,
-        matched_model: LocationModel | None = None,
-    ) -> tuple[LocationModel, LocationModel]:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def correct_location(
-        self,
-        observation: NormalizedObservation,
-        new_label: str,
-        matched_model: LocationModel | None = None,
-    ) -> tuple[dict[str, Any], dict[str, Any]]:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def store_bundle(self, bundle: ObservationBundle) -> None:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def get_bundle(self, bundle_id: str) -> ObservationBundle | None:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def bind_sensor_bundle(
-        self,
-        bundle: ObservationBundle,
-        sensor_observation: SensorObservation,
-        label: str,
-    ) -> tuple[dict[str, Any] | None, dict[str, Any], bool]:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def snapshot_location(
-        self, model: LocationModel | str
-    ) -> dict[str, Any]:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def inspect_models(self) -> list[dict[str, Any]]:  # pragma: no cover - stub
-        raise NotImplementedError
-
-    def reset_memory(self) -> int:  # pragma: no cover - stub
-        raise NotImplementedError

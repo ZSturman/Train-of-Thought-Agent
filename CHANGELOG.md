@@ -2,6 +2,7 @@
 
 ## Release Phase R2 - Core SDK Extraction & Public API (Completed 2026-04-30)
 
+- TestPyPI smoke test passed 2026-05-03: `pip install tot-agent==0.7.0rc1` from TestPyPI succeeded in a clean venv; `tot --help` and `python -c "from location_agent import Agent, __version__; print(__version__)"` both returned correctly. Package name reserved; R3 now active.
 - Bumped package version to `0.7.0rc1` and locked the public surface in `location_agent.__all__`: `Agent`, `LearnResult`, `RecognitionResult`, `MemoryStorage`, `MemoryStore`, `LocalJSONStore`, `EventLogger`, `SensorAdapter`, `ImageAdapter`, `ObservationBundle`, `RegionDescriptor`, `load_adapters`, `SessionController`, exception classes (`ObservationError`, `LabelNameError`, `SensorObservationError`, `LabelConflictError`, `LabelLookupError`), and `__version__`.
 - Added `Agent` facade in `src/location_agent/agent.py` wrapping `MemoryStore` + `EventLogger` + adapter discovery; exposes `learn_scalar`, `recognize_scalar`, `confirm_scalar`, `correct_scalar`, `sense`, `learn_sensor`, `inspect`, `reset` plus frozen `LearnResult` / `RecognitionResult` dataclasses.
 - Added `MemoryStorage` `typing.Protocol` (runtime-checkable) in `src/location_agent/storage.py`; `LocalJSONStore` is the public alias for the concrete `MemoryStore`.

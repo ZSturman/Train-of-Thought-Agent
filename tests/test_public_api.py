@@ -8,6 +8,7 @@ import location_agent
 
 EXPECTED_PUBLIC_NAMES = {
     "Agent",
+    "AsyncAgent",
     "EventLogger",
     "ImageAdapter",
     "LabelConflictError",

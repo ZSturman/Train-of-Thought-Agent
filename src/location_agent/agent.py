@@ -1,13 +1,17 @@
 """High-level programmatic facade over `MemoryStore` + `EventLogger` + adapters.
 
 `Agent` is the single entry point recommended for SDK consumers (the
-upcoming HTTP API in R3 and web app in R4 both build on it). It wraps
-storage, logging, and sensor-adapter discovery so callers do not need to
-wire three objects together.
+HTTP API in R3 and web app in R4 both build on it). It wraps storage,
+logging, and sensor-adapter discovery so callers do not need to wire
+three objects together.
+
+`AsyncAgent` is a thin async wrapper over `Agent` for use in FastAPI
+workers and other async callers. All blocking operations are offloaded
+to the default thread executor via :func:`asyncio.to_thread`.
 
 The interactive CLI loop (`SessionController`) is deliberately *not*
 re-implemented here — it remains the CLI's I/O-coupled driver. For
-programmatic use, prefer `Agent`.
+programmatic use, prefer `Agent` or `AsyncAgent`.
 
 Example
 -------
@@ -21,6 +25,7 @@ kitchen 0.97
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -267,3 +272,75 @@ class Agent:
             return None
         result = helper(bundle)
         return result if isinstance(result, SensorObservation) else None
+
+
+class AsyncAgent:
+    """Thin async wrapper over :class:`Agent` for FastAPI workers and async callers.
+
+    All blocking :class:`Agent` methods are offloaded to the default thread
+    executor via :func:`asyncio.to_thread`, keeping the synchronous ``Agent``
+    intact for CLI and notebook use.
+
+    Parameters
+    ----------
+    runtime_dir, store, logger, adapters, session_id:
+        Forwarded to :class:`Agent` when *agent* is not supplied.
+    agent:
+        Optional pre-constructed :class:`Agent`. When supplied, the other
+        constructor parameters are ignored.
+    """
+
+    def __init__(
+        self,
+        runtime_dir: Path | str | None = None,
+        *,
+        store: MemoryStorage | None = None,
+        logger: EventLogger | None = None,
+        adapters: dict[str, SensorAdapter] | None = None,
+        session_id: str | None = None,
+        agent: Agent | None = None,
+    ) -> None:
+        if agent is not None:
+            self._agent = agent
+        else:
+            self._agent = Agent(
+                runtime_dir,
+                store=store,
+                logger=logger,
+                adapters=adapters,
+                session_id=session_id,
+            )
+
+    @property
+    def agent(self) -> Agent:
+        return self._agent
+
+    async def learn_scalar(self, value: float, label: str) -> LearnResult:
+        return await asyncio.to_thread(self._agent.learn_scalar, value, label)
+
+    async def recognize_scalar(self, value: float) -> RecognitionResult:
+        return await asyncio.to_thread(self._agent.recognize_scalar, value)
+
+    async def confirm_scalar(self, value: float, location_id: str) -> dict[str, Any]:
+        return await asyncio.to_thread(self._agent.confirm_scalar, value, location_id)
+
+    async def correct_scalar(
+        self, value: float, location_id: str, new_label: str
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._agent.correct_scalar, value, location_id, new_label
+        )
+
+    async def sense(self, raw_input: str | Path, modality: str = "image") -> RecognitionResult:
+        return await asyncio.to_thread(self._agent.sense, raw_input, modality)
+
+    async def learn_sensor(
+        self, bundle: ObservationBundle, label: str, modality: str = "image"
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(self._agent.learn_sensor, bundle, label, modality)
+
+    async def inspect(self) -> dict[str, Any]:
+        return await asyncio.to_thread(self._agent.inspect)
+
+    async def reset(self) -> int:
+        return await asyncio.to_thread(self._agent.reset)

@@ -1,0 +1,47 @@
+# Cloud Run service manifest for tot-agent HTTP API.
+#
+# Deploy with:
+#   gcloud run services replace deploy/cloudrun.yaml --region=us-central1
+#
+# Required Cloud Run secrets (create before deploying):
+#   tot-api-key   — value of TOT_API_KEY
+#   tot-tenant-id — value of TOT_TENANT_ID
+#
+# The service account needs roles/datastore.user for Firestore access.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: tot-agent
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 30
+      containers:
+        - image: gcr.io/YOUR_PROJECT_ID/tot-agent:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TOT_STORAGE_BACKEND
+              value: firestore
+            - name: TOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tot-api-key
+                  key: latest
+            - name: TOT_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tot-tenant-id
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
